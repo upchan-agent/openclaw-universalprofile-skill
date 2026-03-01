@@ -266,7 +266,12 @@ export async function getProfileInfo(upAddress, provider) {
   }
   
   // Get Key Manager if owner is one
-  const keyManager = await getKeyManager(upAddress, provider);
+  const lsp6Key = '0x4b80742de2bf485b1436b50a565f0e1b0c1b05b8b55c16cc7a6c2c1e0c1f0b0d';
+let kmAddress = await up.getData(lsp6Key);
+if (!kmAddress || kmAddress === '0x0000000000000000000000000000000000000000') {
+  kmAddress = await up.owner();
+}
+const keyManager = kmAddress || null;
   
   // Get controllers count
   let controllersCount = 0;
