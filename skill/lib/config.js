@@ -24,7 +24,7 @@ const DEFAULT_CONFIG = {
  */
 export function getConfigDir() {
   const home = os.homedir();
-  return path.join(home, '.clawdbot', 'skills', 'universal-profile');
+  return path.join(home, '.openclaw', 'skills', 'universal-profile');
 }
 
 /**

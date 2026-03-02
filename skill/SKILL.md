@@ -66,7 +66,24 @@ Config lookup order: `UP_CREDENTIALS_PATH` env → `~/.openclaw/universal-profil
 
 Key lookup order: `UP_KEY_PATH` env → `~/.openclaw/credentials/universal-profile-key.json` → `~/.clawdbot/credentials/universal-profile-key.json`
 
-Key file permissions: `chmod 600`. Keys loaded only for signing, then cleared.
+Canonical path for new credentials: `~/.openclaw/credentials/universal-profile-key.json`
+
+Skill config path: `~/.openclaw/skills/universal-profile/config.json`
+
+Expected JSON format:
+```json
+{
+  "universalProfile": {
+    "address": "0xYourUniversalProfileAddress"
+  },
+  "controller": {
+    "address": "0xYourControllerAddress",
+    "privateKey": "0xYourPrivateKey"
+  }
+}
+```
+
+Key file permissions: `chmod 600`. Keys loaded only for signing, then cleared. The skill warns if credential files are readable by group/others.
 
 ## Permissions (bytes32 BitArray)
 
@@ -278,7 +295,7 @@ Known collection "Art by the Machine": `0x439f6793b10b0a9d88ad05293a074a8141f19d
 
 ## Dependencies
 
-Node.js 18+, ethers.js v6, `@lukso/eip191-signer.js`, viem.
+Node.js 18+, ethers.js v6, viem.
 
 ## Links
 
