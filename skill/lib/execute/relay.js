@@ -89,7 +89,7 @@ export async function executeRelay(payload, options = {}) {
     transaction: {
       abi: payload,
       signature,
-      nonce: parseInt(nonce.toString()),
+      nonce: nonce.toString(), // Keep as string to avoid BigInt precision loss with parseInt
       validityTimestamps: '0x0'
     }
   };
