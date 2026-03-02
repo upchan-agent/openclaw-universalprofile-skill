@@ -62,9 +62,29 @@ Presets: `read-only` 🟢 | `token-operator` 🟡 | `nft-trader` 🟡 | `defi-tr
 
 ## Credentials
 
-Config lookup order: `UP_CREDENTIALS_PATH` env → `~/.openclaw/universal-profile/config.json` → `~/.clawdbot/universal-profile/config.json`
+Credential file (contains private key — keep secret, chmod 600):
 
-Key lookup order: `UP_KEY_PATH` env → `~/.openclaw/credentials/universal-profile-key.json` → `~/.clawdbot/credentials/universal-profile-key.json`
+```
+UP_CREDENTIALS_PATH env  (full path override, highest priority)
+~/.openclaw/credentials/universal-profile-key.json  (standard location)
+```
+
+Expected format:
+```json
+{
+  "universalProfile": { "address": "0x..." },
+  "controller": {
+    "address": "0x...",
+    "privateKey": "0x..."
+  }
+}
+```
+
+Skill config (non-secret — UP address, chain preferences):
+
+```
+~/.openclaw/skills/universal-profile/config.json  (managed by `up profile configure`)
+```
 
 Key file permissions: `chmod 600`. Keys loaded only for signing, then cleared.
 
