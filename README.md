@@ -7,25 +7,25 @@ An [OpenClaw](https://openclaw.ai) skill for managing [LUKSO Universal Profiles]
 This skill gives your OpenClaw agent the ability to:
 
 - **Manage Universal Profiles** — read/update profile metadata (LSP3), images, links, tags
-- **On-chain social** — follow/unfollow profiles (LSP26), react to content
+- **On-chain social** — follow/unfollow profiles (LSP26)
 - **Token operations** — send/receive LSP7 tokens, interact with LSP8 NFTs
 - **Permission management** — encode/decode LSP6 KeyManager permissions, generate authorization URLs
-- **Gasless transactions** — relay service integration for gas-free operations
-- **IPFS pinning** — pin metadata to IPFS before setting on-chain
+- **Gasless transactions** — relay service integration for gas-free operations on LUKSO
+- **Multi-chain** — direct execution on Base and Ethereum (controller pays gas)
 
 ## Installation
 
 ### Via ClawHub (recommended)
 
-```bash
+```
 clawhub install universal-profile
 ```
 
 ### Manual
 
-```bash
+```
 git clone https://github.com/lukso-network/openclaw-universalprofile-skill.git
-cd openclaw-universalprofile-skill
+cd openclaw-universalprofile-skill/skill
 npm install
 ```
 
@@ -33,72 +33,73 @@ npm install
 
 1. **Create a Universal Profile** at [my.universalprofile.cloud](https://my.universalprofile.cloud)
 2. **Generate a controller key** and authorize it using the [Authorization UI](https://openclaw.universalprofile.cloud)
-3. **Configure the skill:**
+3. **Store your credentials** at:
 
-```bash
-up profile configure <your-up-address> --chain lukso
+```
+~/.openclaw/credentials/universal-profile-key.json
 ```
 
-4. **Store your controller key** (macOS Keychain recommended):
+Or set `UP_CREDENTIALS_PATH` to a custom path.
 
-```bash
-security add-generic-password \
-  -a "<controller-address>" \
-  -s "universalprofile-controller" \
-  -l "UP Controller Key" \
-  -D "Ethereum Private Key" \
-  -w "<private-key>" \
-  -T /usr/bin/security -U
+**Credentials format:**
+```json
+{
+  "universalProfile": {
+    "address": "0x..."
+  },
+  "controller": {
+    "address": "0x...",
+    "privateKey": "0x..."
+  }
+}
 ```
 
-## CLI Commands
+## Execution Models
 
-| Command | Description |
-|---------|-------------|
-| `up status` | Config, keys, connectivity check |
-| `up profile info [address]` | View profile details |
-| `up profile configure <address>` | Save UP address for use |
-| `up key generate [--save]` | Generate controller keypair |
-| `up permissions encode <perms>` | Encode permissions to bytes32 |
-| `up permissions decode <hex>` | Decode permissions to names |
-| `up permissions presets` | List available permission presets |
-| `up authorize url` | Generate authorization URL |
-| `up quota` | Check relay gas quota |
+### Gasless Relay (LUKSO mainnet/testnet only)
+```
+Controller signs LSP25 → LUKSO Relay API → KeyManager.executeRelayCall() → UP
+```
+Requires `EXECUTE_RELAY_CALL` + `SIGN` permissions and relay quota.
 
-### Permission Presets
+### Direct (all chains — controller pays gas)
+```
+Controller → UP.execute(operation, target, value, data) → Target
+```
+Works on LUKSO, Base, and Ethereum.
+
+## Networks
+
+| Chain | ID | Relay |
+|---|---|---|
+| LUKSO Mainnet | 42 | ✅ `https://relayer.mainnet.lukso.network/api` |
+| LUKSO Testnet | 4201 | ✅ `https://relayer.testnet.lukso.network/api` |
+| Base | 8453 | ❌ Direct only |
+| Ethereum | 1 | ❌ Direct only |
+
+## Permission Presets
 
 | Preset | Risk | Description |
-|--------|------|-------------|
+|---|---|---|
 | `read-only` | 🟢 Low | View profile data only |
 | `token-operator` | 🟡 Medium | Send/receive tokens |
 | `nft-trader` | 🟡 Medium | Trade NFTs |
 | `defi-trader` | 🟠 High | DeFi interactions |
 | `profile-manager` | 🟡 Medium | Update profile metadata |
-| `full-access` | 🔴 Critical | All permissions |
-
-## Credentials
-
-The skill looks for credentials in this order:
-
-1. `UP_CREDENTIALS_PATH` environment variable
-2. `~/.openclaw/universal-profile/config.json`
-3. `~/.clawdbot/universal-profile/config.json`
-4. `./credentials/config.json`
-
-Key files: `UP_KEY_PATH` env → `~/.openclaw/credentials/universal-profile-key.json`
+| `full-access` | 🔴 Critical | All safe permissions (excludes DELEGATECALL, REENTRANCY) |
 
 ## Tech Stack
 
-- **LUKSO Standards**: LSP0 (ERC725Account), LSP2 (ERC725YJSONSchema), LSP3 (Profile Metadata), LSP6 (KeyManager), LSP7 (Digital Asset), LSP8 (Identifiable Digital Asset), LSP26 (Follower System)
-- **Libraries**: ethers.js, @erc725/erc725.js, @lukso/lsp-smart-contracts
-- **Network**: LUKSO Mainnet (Chain ID: 42)
+- **LUKSO Standards**: LSP0, LSP3, LSP6, LSP7, LSP8, LSP25, LSP26
+- **Libraries**: ethers.js v6, viem v2
+- **Network**: LUKSO Mainnet (42), Testnet (4201), Base (8453), Ethereum (1)
 
 ## Links
 
 - [LUKSO Documentation](https://docs.lukso.tech)
-- [LSP Standards](https://docs.lukso.tech/standards/introduction)
 - [OpenClaw](https://openclaw.ai)
-- [ClawHub](https://clawhub.com)
+- [Authorization UI](https://openclaw.universalprofile.cloud)
+- [Full Skill Documentation](./skill/SKILL.md)
 
 ## License
 
