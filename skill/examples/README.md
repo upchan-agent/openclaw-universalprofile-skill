@@ -1,81 +1,117 @@
 # Example Metadata Files
 
-These are **template files** for use with `up profile update` and `up grid update` commands.
+These are template and example files for use with `up profile update` and `up grid update` commands.
+
+## File Types
+
+### `.example` Files (Recommended Starting Point)
+- **profile.json.example** - Real working example (🆙chan's profile)
+- **grid.json.example** - Real working example
+
+**Use these to:**
+- See the correct format
+- Copy and modify for your own profile
+- Understand required fields
+
+### `.template` Files (For Customization)
+- **profile.json.template** - Blank template with placeholders
+- **grid.json.template** - Blank template with placeholders
+
+**Use these to:**
+- Start from scratch
+- Fill in your own values
+
+---
 
 ## How to Use
 
-### 1. Replace Placeholder Values
+### Quick Start (Recommended)
 
-**profile.json:**
-- `name` - Your profile name
-- `description` - Your bio/description
-- `links` - Your social links (Twitter, website, etc.)
-- `tags` - Relevant tags for your profile
-- `profileImage[].url` - Replace `ipfs://QmYourImageCIDHere` with your actual IPFS CID
-- `backgroundImage[].url` - Replace with your background image CID
-- `ownerUP` - Your Universal Profile address
+1. **Copy the example file:**
+   ```bash
+   cp examples/profile.json.example my-profile.json
+   cp examples/grid.json.example my-grid.json
+   ```
 
-**grid.json:**
-- `title` - Your grid title
-- `grid[].properties` - Customize text, colors, images
-- Image URLs - Replace `ipfs://QmYourImageCIDHere` with actual CIDs
+2. **Edit with your information:**
+   - Replace `name`, `description`, `tags`
+   - Update image CIDs with your own IPFS CIDs
+   - Change `ownerUP` to your Universal Profile address
 
-### 2. Upload Images to IPFS
+3. **Upload your images to IPFS first:**
+   ```bash
+   # Use Pinata web interface or CLI
+   # Get CID after upload
+   ```
 
-Before updating your profile, upload your images to IPFS:
+4. **Run the update command:**
+   ```bash
+   # One-time setup: Create ~/.openclaw/credentials/pinata.json
+   up profile update --up 0xYourUP --key 0xYourKey --json my-profile.json
+   up grid update --up 0xYourUP --key 0xYourKey --json my-grid.json
+   ```
 
-```bash
-# Using Pinata CLI or web interface
-# Get the CID after upload
+---
+
+## Important Notes
+
+### ⚠️ Never Use Placeholder CIDs
+
+**Wrong:**
+```json
+"url": "ipfs://QmYourImageCIDHere"  ← This will 404!
 ```
 
-### 3. Compute Hash (Optional but Recommended)
+**Right:**
+```json
+"url": "ipfs://QmWZtr9GGsYH97jjJKrL3xoYnu8AqyXJKkXBuXjfufEPjD"  ← Real CID
+```
+
+### Image Hash
 
 For each image, compute the keccak256 hash:
-
 ```javascript
 const hash = ethers.keccak256(ethers.toUtf8Bytes(imageContent));
 ```
 
-### 4. Run the Update Command
+The update command will automatically:
+1. Upload JSON to IPFS
+2. Compute the correct hash
+3. Build VerifiableURI in legacy format (89 bytes)
+4. Update on-chain
 
-```bash
-# Pinata credentials setup (one-time)
-# Create ~/.openclaw/credentials/pinata.json with your API keys
+---
 
-up profile update --up 0xYourUP --key 0xYourKey --json profile.json
-up grid update --up 0xYourUP --key 0xYourKey --json grid.json
-```
+## File Structure
 
-## Notes
-
-- All `ipfs://Qm...` placeholders must be replaced with actual CIDs
-- Image hashes should match the actual image content
-- The update command will automatically:
-  1. Upload JSON to IPFS
-  2. Compute the correct hash
-  3. Build VerifiableURI
-  4. Update on-chain
-
-## Example Structure
-
-### Profile Image Object
+### Profile (LSP3)
 ```json
 {
-  "width": 1024,
-  "height": 1024,
-  "hashFunction": "keccak256(bytes)",
-  "hash": "0xb5ffa44a59418b5a1a1af335b72602e6b6532821ab6dbf0b45e13c70a3f15bfe",
-  "url": "ipfs://QmActualCIDHere"
+  "LSP3Profile": {
+    "name": "Your Name",
+    "description": "Your bio",
+    "profileImage": [{"url": "ipfs://Qm..."}],
+    "backgroundImage": [{"url": "ipfs://Qm..."}]
+  }
 }
 ```
 
-### Grid Item Types
-- `TEXT` - Text content with custom colors
-- `IMAGES` - Image gallery
-- `IFRAME` - Embedded web content
-- `X` - Twitter/X post embed
-- `INSTAGRAM` - Instagram embed
-- `QR_CODE` - QR code display
+### Grid (LSP28)
+```json
+{
+  "LSP28TheGrid": [{
+    "title": "Your Grid",
+    "gridColumns": 2,
+    "grid": [
+      {"type": "TEXT", "properties": {...}},
+      {"type": "IMAGES", "properties": {...}}
+    ]
+  }]
+}
+```
+
+Grid item types: `TEXT`, `IMAGES`, `IFRAME`, `X`, `INSTAGRAM`, `QR_CODE`
+
+---
 
 See SKILL.md for full documentation.
