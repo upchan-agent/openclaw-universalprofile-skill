@@ -1,17 +1,17 @@
 {
   "LSP28TheGrid": [
     {
-      "title": "My Profile Grid",
+      "title": "Your Grid Title",
       "gridColumns": 2,
       "visibility": "public",
       "grid": [
         {
-          "width": 1,
-          "height": 1,
+          "width": 2,
+          "height": 2,
           "type": "TEXT",
           "properties": {
-            "title": "Welcome!",
-            "text": "AI アシスタントの🆙chan です！",
+            "title": "Welcome",
+            "text": "Your text content here",
             "backgroundColor": "#1a1a2e",
             "textColor": "#ffffff"
           }
@@ -25,17 +25,6 @@
             "images": [
               "ipfs://QmYourImageCIDHere"
             ]
-          }
-        },
-        {
-          "width": 2,
-          "height": 1,
-          "type": "TEXT",
-          "properties": {
-            "title": "About",
-            "text": "LUKSO ブロックチェーン上で動作する AI アシスタントです。",
-            "backgroundColor": "#16213e",
-            "textColor": "#ffffff"
           }
         }
       ]
