@@ -402,8 +402,6 @@ export async function listControllers(upAddress, provider) {
       console.error(`Error fetching controller ${i}:`, err.message);
     }
   }
-    }
-  }
   
   return controllers;
 }
