@@ -40,8 +40,8 @@ const hash = ethers.keccak256(ethers.toUtf8Bytes(imageContent));
 ### 4. Run the Update Command
 
 ```bash
-export PINATA_API_KEY=your-key
-export PINATA_SECRET=your-secret
+# Pinata credentials setup (one-time)
+# Create ~/.openclaw/credentials/pinata.json with your API keys
 
 up profile update --up 0xYourUP --key 0xYourKey --json profile.json
 up grid update --up 0xYourUP --key 0xYourKey --json grid.json

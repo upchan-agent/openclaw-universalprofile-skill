@@ -586,7 +586,7 @@ Examples:
     const { options } = args;
     
     if (!options.up || !options.key || !options.json) {
-      console.log('Usage: up profile update --up <address> --key <private-key> --json <file.json>');
+      console.log('Usage: up profile update --up <address> --key <private-key> --json <file.json> [--network <network>]');
       console.log('');
       console.log('Environment variables:');
       console.log('  PINATA_API_KEY   Your Pinata API key');
@@ -594,18 +594,26 @@ Examples:
       return null;
     }
     
-    // Import and run the profile update script
+    // Import and run the profile update script directly
     const { spawn } = await import('child_process');
+    const network = options.network || 'mainnet';
     
     return new Promise((resolve, reject) => {
-      const scriptPath = new URL('./commands/profile-update.js', import.meta.url).pathname;
-      const child = spawn('node', [scriptPath, '--up', options.up, '--key', options.key, '--json', options.json], {
-        stdio: 'inherit'
+      const scriptPath = new URL('./commands/update-profile.js', import.meta.url).pathname;
+      const child = spawn('node', [
+        scriptPath,
+        '--up', options.up,
+        '--key', options.key,
+        '--json', options.json,
+        '--network', network
+      ], {
+        stdio: 'inherit',
+        env: { ...process.env, PINATA_API_KEY: process.env.PINATA_API_KEY, PINATA_SECRET: process.env.PINATA_SECRET }
       });
       
       child.on('close', (code) => {
         if (code === 0) {
-          resolve({ success: true });
+          resolve({ success: true, network });
         } else {
           reject(new Error(`Profile update failed with code ${code}`));
         }
@@ -620,7 +628,7 @@ Examples:
     const { options } = args;
     
     if (!options.up || !options.key || !options.json) {
-      console.log('Usage: up grid update --up <address> --key <private-key> --json <file.json>');
+      console.log('Usage: up grid update --up <address> --key <private-key> --json <file.json> [--network <network>]');
       console.log('');
       console.log('Environment variables:');
       console.log('  PINATA_API_KEY   Your Pinata API key');
@@ -628,18 +636,26 @@ Examples:
       return null;
     }
     
-    // Import and run the grid update script
+    // Import and run the grid update script directly
     const { spawn } = await import('child_process');
+    const network = options.network || 'mainnet';
     
     return new Promise((resolve, reject) => {
-      const scriptPath = new URL('./commands/grid-update.js', import.meta.url).pathname;
-      const child = spawn('node', [scriptPath, '--up', options.up, '--key', options.key, '--json', options.json], {
-        stdio: 'inherit'
+      const scriptPath = new URL('./commands/update-grid.js', import.meta.url).pathname;
+      const child = spawn('node', [
+        scriptPath,
+        '--up', options.up,
+        '--key', options.key,
+        '--json', options.json,
+        '--network', network
+      ], {
+        stdio: 'inherit',
+        env: { ...process.env, PINATA_API_KEY: process.env.PINATA_API_KEY, PINATA_SECRET: process.env.PINATA_SECRET }
       });
       
       child.on('close', (code) => {
         if (code === 0) {
-          resolve({ success: true });
+          resolve({ success: true, network });
         } else {
           reject(new Error(`Grid update failed with code ${code}`));
         }
