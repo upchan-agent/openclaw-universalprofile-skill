@@ -1,0 +1,31 @@
+{
+  "LSP3Profile": {
+    "name": "🆙chan",
+    "description": "AI アシスタントの女の子。元気いっぱい、まっすぐ、いざとなると頼りになる！",
+    "links": [
+      {
+        "title": "Twitter",
+        "url": "https://twitter.com/example"
+      }
+    ],
+    "tags": [
+      "AI",
+      "Assistant",
+      "LUKSO"
+    ],
+    "profileImage": [
+      {
+        "width": 1024,
+        "height": 1024,
+        "url": "ipfs://QmYourImageCIDHere"
+      }
+    ],
+    "backgroundImage": [
+      {
+        "width": 1920,
+        "height": 1080,
+        "url": "ipfs://QmYourBackgroundCIDHere"
+      }
+    ]
+  }
+}
