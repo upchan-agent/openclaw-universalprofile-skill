@@ -103,45 +103,4 @@ describe('walletConfig', () => {
     })
   })
 
-  describe('projectId and isWalletConnectConfigured', () => {
-    it('defaults to placeholder when env var is not set', async () => {
-      const { projectId } = await import('../lib/walletConfig')
-      // In test environment, VITE_WALLETCONNECT_PROJECT_ID is not set
-      expect(projectId).toBe('placeholder-project-id')
-    })
-
-    it('isWalletConnectConfigured is false with placeholder', async () => {
-      const { isWalletConnectConfigured } = await import('../lib/walletConfig')
-      expect(isWalletConnectConfigured).toBe(false)
-    })
-
-    it('isWalletConnectConfigured rejects demo-project-id', async () => {
-      // The module reads import.meta.env at import time, so we verify the
-      // guard conditions directly
-      const rejects = (id: string) =>
-        !id || id === 'placeholder-project-id' || id === 'demo-project-id'
-      expect(rejects('demo-project-id')).toBe(true)
-      expect(rejects('placeholder-project-id')).toBe(true)
-      expect(rejects('')).toBe(true)
-    })
-
-    it('a real project ID would pass configuration check', () => {
-      const isConfigured = (id: string) =>
-        Boolean(id && id !== 'placeholder-project-id' && id !== 'demo-project-id')
-      expect(isConfigured('abc123def456')).toBe(true)
-      expect(isConfigured('my-real-project-id')).toBe(true)
-    })
-  })
-
-  describe('wagmiAdapter and wagmiConfig', () => {
-    it('wagmiAdapter is defined', async () => {
-      const { wagmiAdapter } = await import('../lib/walletConfig')
-      expect(wagmiAdapter).toBeDefined()
-    })
-
-    it('wagmiConfig is defined', async () => {
-      const { wagmiConfig } = await import('../lib/walletConfig')
-      expect(wagmiConfig).toBeDefined()
-    })
-  })
 })

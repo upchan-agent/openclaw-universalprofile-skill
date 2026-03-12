@@ -8,12 +8,9 @@ const defaultProps = {
   isConnecting: false,
   address: null as string | null,
   profileData: null as ProfileData | null,
-  isExtensionAvailable: true,
-  isWalletConnectAvailable: true,
   connectionMethod: null as ConnectionMethod,
   error: null as string | null,
-  onConnectExtension: vi.fn(),
-  onConnectWalletConnect: vi.fn(),
+  onConnect: vi.fn(),
   onDisconnect: vi.fn(),
 }
 
@@ -29,57 +26,9 @@ describe('ConnectionSection', () => {
       expect(screen.getByText('Connect Your Universal Profile')).toBeInTheDocument()
     })
 
-    it('shows extension button when extension is available', () => {
-      renderSection({ isExtensionAvailable: true })
-      expect(screen.getByText('UP Browser Extension')).toBeInTheDocument()
-    })
-
-    it('shows WalletConnect button when WalletConnect is available', () => {
-      renderSection({ isWalletConnectAvailable: true })
-      expect(screen.getByText('WalletConnect')).toBeInTheDocument()
-    })
-
-    it('shows both connection options when both are available', () => {
-      renderSection({ isExtensionAvailable: true, isWalletConnectAvailable: true })
-      expect(screen.getByText('UP Browser Extension')).toBeInTheDocument()
-      expect(screen.getByText('WalletConnect')).toBeInTheDocument()
-    })
-
-    it('shows only WalletConnect when extension is not available', () => {
-      renderSection({ isExtensionAvailable: false, isWalletConnectAvailable: true })
-      expect(screen.queryByText('UP Browser Extension')).not.toBeInTheDocument()
-      expect(screen.getByText('WalletConnect')).toBeInTheDocument()
-    })
-
-    it('shows install extension link when extension is not available', () => {
-      renderSection({ isExtensionAvailable: false, isWalletConnectAvailable: true })
-      const link = screen.getByText(/Don't have the UP Extension/)
-      expect(link).toBeInTheDocument()
-      expect(link.closest('a')).toHaveAttribute('href', 'https://docs.lukso.tech/install-up-browser-extension')
-    })
-
-    it('does not show install link when extension is available', () => {
-      renderSection({ isExtensionAvailable: true, isWalletConnectAvailable: true })
-      expect(screen.queryByText(/Don't have the UP Extension/)).not.toBeInTheDocument()
-    })
-  })
-
-  describe('no wallet detected', () => {
-    it('shows no wallet message when neither option is available', () => {
-      renderSection({ isExtensionAvailable: false, isWalletConnectAvailable: false })
-      expect(screen.getByText('No Wallet Detected')).toBeInTheDocument()
-    })
-
-    it('shows install extension link in no wallet state', () => {
-      renderSection({ isExtensionAvailable: false, isWalletConnectAvailable: false })
-      const link = screen.getByText('Install Extension')
-      expect(link.closest('a')).toHaveAttribute('href', 'https://docs.lukso.tech/install-up-browser-extension')
-    })
-
-    it('does not show connect buttons in no wallet state', () => {
-      renderSection({ isExtensionAvailable: false, isWalletConnectAvailable: false })
-      expect(screen.queryByText('UP Browser Extension')).not.toBeInTheDocument()
-      expect(screen.queryByText('WalletConnect')).not.toBeInTheDocument()
+    it('shows Connect Wallet button', () => {
+      renderSection()
+      expect(screen.getByText('Connect Wallet')).toBeInTheDocument()
     })
   })
 
@@ -110,9 +59,13 @@ describe('ConnectionSection', () => {
       expect(screen.getByText('WalletConnect')).toBeInTheDocument()
     })
 
+    it('shows connection method label for UP Provider', () => {
+      renderSection({ ...connectedProps, connectionMethod: 'up-provider' })
+      expect(screen.getByText('UP Provider')).toBeInTheDocument()
+    })
+
     it('shows truncated address', () => {
       renderSection(connectedProps)
-      // formatAddress(address, 6) → "0x123456...345678"
       expect(screen.getByText('0x123456...345678')).toBeInTheDocument()
     })
 
@@ -160,20 +113,12 @@ describe('ConnectionSection', () => {
   })
 
   describe('button interactions', () => {
-    it('calls onConnectExtension when extension button clicked', () => {
-      const onConnectExtension = vi.fn()
-      renderSection({ onConnectExtension })
+    it('calls onConnect when connect button clicked', () => {
+      const onConnect = vi.fn()
+      renderSection({ onConnect })
 
-      fireEvent.click(screen.getByText('UP Browser Extension'))
-      expect(onConnectExtension).toHaveBeenCalledTimes(1)
-    })
-
-    it('calls onConnectWalletConnect when WalletConnect button clicked', () => {
-      const onConnectWalletConnect = vi.fn()
-      renderSection({ onConnectWalletConnect })
-
-      fireEvent.click(screen.getByText('WalletConnect'))
-      expect(onConnectWalletConnect).toHaveBeenCalledTimes(1)
+      fireEvent.click(screen.getByText('Connect Wallet'))
+      expect(onConnect).toHaveBeenCalledTimes(1)
     })
 
     it('calls onDisconnect when disconnect button clicked', () => {
@@ -188,15 +133,9 @@ describe('ConnectionSection', () => {
       expect(onDisconnect).toHaveBeenCalledTimes(1)
     })
 
-    it('disables extension button when connecting', () => {
+    it('disables connect button when connecting', () => {
       renderSection({ isConnecting: true })
       const button = screen.getByText('Connecting...').closest('button')
-      expect(button).toBeDisabled()
-    })
-
-    it('disables WalletConnect button when connecting', () => {
-      renderSection({ isConnecting: true })
-      const button = screen.getByText('WalletConnect').closest('button')
       expect(button).toBeDisabled()
     })
 

@@ -1,10 +1,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import {
-  createWalletClient,
   createPublicClient,
-  custom,
   http,
-  type WalletClient,
   type PublicClient,
   type Address,
   type Hex,
@@ -13,19 +10,11 @@ import {
 import { useAccount, useDisconnect, useWalletClient as useWagmiWalletClient, useSwitchChain } from 'wagmi'
 import { CHAINS, LSP0_ABI, DATA_KEYS, getChainById } from '../constants'
 import { fetchLuksoProfileData } from './useLuksoProfile'
-import { isWalletConnectConfigured } from '../lib/walletConfig'
-import { getAppKitModal } from '../providers/WalletProvider'
+import { useLuksoConnector } from '../providers/WalletProvider'
 
 // localStorage keys for persisting UP address across chain-change reloads
 const LS_KNOWN_UP_ADDRESS = 'openclaw_known_up_address'
 const LS_ORIGINAL_CHAIN_ID = 'openclaw_original_chain_id'
-
-// Type for UP Provider
-interface UPProvider {
-  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
-  on: (event: string, handler: (...args: unknown[]) => void) => void
-  removeListener: (event: string, handler: (...args: unknown[]) => void) => void
-}
 
 export interface WalletState {
   isConnected: boolean
@@ -33,7 +22,7 @@ export interface WalletState {
   address: Address | null
   chainId: number | null
   error: string | null
-  walletClient: WalletClient | null
+  walletClient: ReturnType<typeof useWagmiWalletClient>['data'] | null
   publicClient: PublicClient | null
 }
 
@@ -46,29 +35,20 @@ export interface ProfileData {
   profileImage?: string
 }
 
-export type ConnectionMethod = 'extension' | 'walletconnect' | null
+export type ConnectionMethod = 'extension' | 'walletconnect' | 'up-provider' | null
 
 export function useWallet() {
-  // === WAGMI HOOKS (for WalletConnect) ===
-  const wagmiAccount = useAccount()
-  const { data: wagmiWalletClient, isLoading: wagmiWalletClientLoading } = useWagmiWalletClient()
+  const luksoConnector = useLuksoConnector()
+
+  // === WAGMI HOOKS (driven by up-modal's wagmi config) ===
+  const { address: wagmiAddress, isConnected: wagmiConnected, isConnecting: wagmiConnecting, chainId: wagmiChainId, connector: wagmiConnector } = useAccount()
+  const { data: wagmiWalletClient } = useWagmiWalletClient()
   const { disconnect: wagmiDisconnect } = useDisconnect()
   const { switchChain: wagmiSwitchChain } = useSwitchChain()
-
-  // === EXTENSION STATE ===
-  const [extConnected, setExtConnected] = useState(false)
-  const [extConnecting, setExtConnecting] = useState(false)
-  const [extAddress, setExtAddress] = useState<Address | null>(null)
-  const [extChainId, setExtChainId] = useState<number | null>(null)
-  const [extWalletClient, setExtWalletClient] = useState<WalletClient | null>(null)
-
-  // Chain detected from extension even when connection (eth_requestAccounts) fails
-  const [extensionChainDetected, setExtensionChainDetected] = useState<number | null>(null)
 
   // === SHARED STATE ===
   const [error, setError] = useState<string | null>(null)
   const [profileData, setProfileData] = useState<ProfileData | null>(null)
-  const [connectionMethod, setConnectionMethod] = useState<ConnectionMethod>(null)
 
   // === KNOWN UP ADDRESS (persists across chain switches) ===
   const [knownUpAddress, setKnownUpAddressInternal] = useState<Address | null>(() => {
@@ -80,80 +60,43 @@ export function useWallet() {
     return stored ? parseInt(stored, 10) : null
   })
 
-  // Prevent wagmi auto-reconnect — start disconnected, require explicit connect
-  const manuallyDisconnected = useRef(true)
-
-  // === PROVIDER DETECTION ===
-  const getProvider = useCallback((): UPProvider | null => {
-    if (typeof window === 'undefined') return null
-
-    // Check for UP Browser Extension
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const ethereum = (window as any).ethereum
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const lukso = (window as any).lukso
-
-    // Prefer lukso provider if available
-    if (lukso) return lukso
-    if (ethereum) return ethereum
-
-    return null
-  }, [])
-
-  const isExtensionAvailable = useMemo(() => getProvider() !== null, [getProvider])
+  // Track explicit disconnects to prevent auto-reconnection
+  const manuallyDisconnected = useRef(false)
 
   // === HANDLE WAGMI AUTO-RECONNECT ===
   useEffect(() => {
-    if (wagmiAccount.isConnected && manuallyDisconnected.current) {
+    if (wagmiConnected && manuallyDisconnected.current) {
       wagmiDisconnect()
     }
-  }, [wagmiAccount.isConnected, wagmiDisconnect])
+  }, [wagmiConnected, wagmiDisconnect])
 
   // === COMPUTED STATE ===
-  // Extension takes priority if both are connected
-  const isWcConnected = wagmiAccount.isConnected && !manuallyDisconnected.current && !extConnected
-  const isConnected = extConnected || isWcConnected
-  const isConnecting = extConnecting || (wagmiAccount.isConnecting && !extConnected)
+  const isConnected = wagmiConnected && !manuallyDisconnected.current
+  const isConnecting = wagmiConnecting
+  const address = isConnected ? (wagmiAddress ?? null) : null
+  const chainId = isConnected ? (wagmiChainId ?? null) : null
 
-  const address = extConnected
-    ? extAddress
-    : isWcConnected
-      ? (wagmiAccount.address ?? null)
-      : null
+  // Connection method derived from wagmi connector
+  const connectionMethod = useMemo<ConnectionMethod>(() => {
+    if (!isConnected || !wagmiConnector) return null
+    if (wagmiConnector.id === 'up-provider') return 'up-provider'
+    if (wagmiConnector.type === 'walletConnect') return 'walletconnect'
+    return 'extension'
+  }, [isConnected, wagmiConnector])
 
-  const chainId = extConnected
-    ? extChainId
-    : isWcConnected
-      ? (wagmiAccount.chainId ?? null)
-      : null
-
-  // Effective chain ID: connected wallet's chain, or detected extension chain as fallback
-  const effectiveChainId = chainId ?? extensionChainDetected
-
-  // Public client — always create manually for consistency
-  // Uses effectiveChainId so we can do getCode checks even when not fully connected
+  // Public client
   const publicClient = useMemo(() => {
-    if (!effectiveChainId) return null
-    const knownChain = getChainById(effectiveChainId)
+    const cid = chainId
+    if (!cid) return null
+    const knownChain = getChainById(cid)
     const chain: Chain = knownChain
       ? (knownChain as unknown as Chain)
-      : ({ ...CHAINS.lukso, id: effectiveChainId } as unknown as Chain)
+      : ({ ...CHAINS.lukso, id: cid } as unknown as Chain)
     return createPublicClient({ chain, transport: http() })
-  }, [effectiveChainId])
+  }, [chainId])
 
-  // Wallet client — extension uses manual, WC uses wagmi
-  const walletClient = extConnected
-    ? extWalletClient
-    : isWcConnected
-      ? (wagmiWalletClient ?? null)
-      : null
-
-  // === TRACK CONNECTION METHOD ===
-  useEffect(() => {
-    if (extConnected) setConnectionMethod('extension')
-    else if (isWcConnected) setConnectionMethod('walletconnect')
-    else setConnectionMethod(null)
-  }, [extConnected, isWcConnected])
+  // Wallet client from wagmi
+  const walletClient = isConnected ? (wagmiWalletClient ?? null) : null
 
   // === STORE KNOWN UP ADDRESS on initial connection ===
   useEffect(() => {
@@ -167,83 +110,34 @@ export function useWallet() {
     }
   }, [isConnected, address, chainId, knownUpAddress])
 
-  // === DEBUG: WalletConnect client readiness ===
-  useEffect(() => {
-    if (isWcConnected && !wagmiWalletClient) {
-      console.warn('[useWallet] WalletConnect connected but walletClient not yet available', {
-        wagmiAccountStatus: wagmiAccount.status,
-        wagmiChainId: wagmiAccount.chainId,
-        wagmiAddress: wagmiAccount.address,
-        wagmiWalletClientLoading,
-      })
-    }
-  }, [isWcConnected, wagmiWalletClient, wagmiAccount.status, wagmiAccount.chainId, wagmiAccount.address, wagmiWalletClientLoading])
-
   // === SET KNOWN UP ADDRESS (from external sources like ProfileSearch) ===
   const setKnownUpAddress = useCallback((addr: Address) => {
     setKnownUpAddressInternal(addr)
     localStorage.setItem(LS_KNOWN_UP_ADDRESS, addr)
-    // Always set original chain to LUKSO mainnet since profiles are created there
     setOriginalChainId(42)
     localStorage.setItem(LS_ORIGINAL_CHAIN_ID, '42')
   }, [])
 
   // === SWITCH NETWORK ===
   const switchNetwork = useCallback(async (targetChainId: number) => {
-    if (extConnected) {
-      // Extension path: use provider's wallet_switchEthereumChain
-      const provider = getProvider()
-      if (!provider) return
-      const hexChainId = `0x${targetChainId.toString(16)}`
-      try {
-        await provider.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: hexChainId }],
-        })
-      } catch (err: unknown) {
-        // 4902 = chain not added to wallet, try adding it
-        if (err && typeof err === 'object' && 'code' in err && (err as { code: number }).code === 4902) {
-          const chainConfig = getChainById(targetChainId)
-          if (chainConfig) {
-            await provider.request({
-              method: 'wallet_addEthereumChain',
-              params: [{
-                chainId: hexChainId,
-                chainName: chainConfig.name,
-                nativeCurrency: chainConfig.nativeCurrency,
-                rpcUrls: chainConfig.rpcUrls.default.http,
-                blockExplorerUrls: [chainConfig.blockExplorers.default.url],
-              }],
-            })
-          }
-        } else {
-          console.error('Failed to switch network:', err)
-          setError(err instanceof Error ? err.message : 'Failed to switch network')
-        }
-      }
-    } else if (isWcConnected && wagmiSwitchChain) {
-      // WalletConnect path: use wagmi's switchChain
-      try {
-        wagmiSwitchChain({ chainId: targetChainId })
-      } catch (err) {
-        console.error('Failed to switch network:', err)
-        setError(err instanceof Error ? err.message : 'Failed to switch network')
-      }
+    if (!wagmiSwitchChain) return
+    try {
+      wagmiSwitchChain({ chainId: targetChainId })
+    } catch (err) {
+      console.error('Failed to switch network:', err)
+      setError(err instanceof Error ? err.message : 'Failed to switch network')
     }
-  }, [extConnected, isWcConnected, getProvider, wagmiSwitchChain])
+  }, [wagmiSwitchChain])
 
   // === PROFILE FETCHING ===
-  // Owner + controllers come from the current chain; profile metadata always from LUKSO mainnet.
   const fetchProfileData = useCallback(async (addr: Address, pc: PublicClient) => {
     try {
-      // Get owner from current chain
       const owner = await pc.readContract({
         address: addr,
         abi: LSP0_ABI,
         functionName: 'owner',
       }) as Address
 
-      // Get controllers count from current chain
       const lengthData = await pc.readContract({
         address: addr,
         abi: LSP0_ABI,
@@ -255,7 +149,6 @@ export function useWallet() {
         ? parseInt(lengthData.slice(0, 34), 16)
         : 0
 
-      // Always fetch profile metadata (name, image) from LUKSO mainnet
       const luksoProfile = await fetchLuksoProfileData(addr)
 
       setProfileData({
@@ -283,136 +176,23 @@ export function useWallet() {
     }
   }, [address, publicClient, fetchProfileData])
 
-  // === CONNECT EXTENSION ===
-  const connectExtension = useCallback(async () => {
-    setExtConnecting(true)
-    setError(null)
-
-    // Disconnect wagmi to avoid conflicts
-    if (wagmiAccount.isConnected) {
-      wagmiDisconnect()
-    }
-
-    const provider = getProvider()
-    if (!provider) {
-      setExtConnecting(false)
-      const msg = 'No UP Browser Extension detected. Please install the LUKSO UP Extension.'
-      console.error('[useWallet]', msg)
-      setError(msg)
+  // === CONNECT (opens up-modal) ===
+  const connect = useCallback(async () => {
+    if (!luksoConnector) {
+      setError('Wallet modal not initialized yet. Please try again.')
       return
     }
-
-    try {
-      // Request accounts
-      const accounts = await provider.request({ method: 'eth_requestAccounts' }) as string[]
-      if (!accounts || accounts.length === 0) {
-        throw new Error('No accounts returned')
-      }
-
-      // Get chain ID
-      const chainIdHex = await provider.request({ method: 'eth_chainId' }) as string
-      const cid = parseInt(chainIdHex, 16)
-
-      // Determine chain config
-      const knownChain = getChainById(cid)
-      const chain: Chain = knownChain
-        ? (knownChain as unknown as Chain)
-        : ({ ...CHAINS.lukso, id: cid } as unknown as Chain)
-
-      // Create wallet client
-      const wc = createWalletClient({
-        chain,
-        transport: custom(provider),
-      })
-
-      setExtConnected(true)
-      setExtConnecting(false)
-      setExtAddress(accounts[0] as Address)
-      setExtChainId(cid)
-      setExtWalletClient(wc)
-      setExtensionChainDetected(null) // Clear — full connection succeeded
-      manuallyDisconnected.current = false
-    } catch (err) {
-      console.error('Extension connection error:', err)
-
-      // Connection failed, but try to detect the chain anyway.
-      // The UP may not be imported on this chain yet, but we can still
-      // read the chain ID to guide the user through profile import.
-      try {
-        const chainIdHex = await provider.request({ method: 'eth_chainId' }) as string
-        const cid = parseInt(chainIdHex, 16)
-        if (!isNaN(cid) && cid > 0) {
-          console.log('[useWallet] Connection failed but detected chain:', cid)
-          setExtensionChainDetected(cid)
-          // Don't set a user-facing error if we detected the chain and have a known UP —
-          // the ProfileImport flow will handle it
-          if (knownUpAddress) {
-            setExtConnecting(false)
-            setError(null)
-            return
-          }
-        }
-      } catch (chainErr) {
-        console.error('[useWallet] Could not detect chain after connection failure:', chainErr)
-      }
-
-      setExtConnecting(false)
-      setError(err instanceof Error ? err.message : 'Failed to connect wallet')
-    }
-  }, [getProvider, wagmiAccount.isConnected, wagmiDisconnect, knownUpAddress])
-
-  // === CONNECT WALLETCONNECT ===
-  const connectWalletConnect = useCallback(async () => {
-    if (!isWalletConnectConfigured) {
-      const msg = 'WalletConnect is not configured. Set VITE_WALLETCONNECT_PROJECT_ID in your environment.'
-      console.error('[useWallet]', msg)
-      setError(msg)
-      return
-    }
-
-    const modal = getAppKitModal()
-    if (!modal) {
-      const msg = 'WalletConnect failed to initialize. Please try again.'
-      console.error('[useWallet]', msg)
-      setError(msg)
-      return
-    }
-
     setError(null)
     manuallyDisconnected.current = false
-
-    // Disconnect extension if connected
-    if (extConnected) {
-      setExtConnected(false)
-      setExtAddress(null)
-      setExtChainId(null)
-      setExtWalletClient(null)
-    }
-
-    try {
-      await modal.open()
-    } catch (err) {
-      console.error('WalletConnect error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to open WalletConnect')
-    }
-  }, [extConnected])
+    luksoConnector.showSignInModal()
+  }, [luksoConnector])
 
   // === DISCONNECT ===
   const disconnect = useCallback(() => {
     manuallyDisconnected.current = true
 
-    // Disconnect extension
-    setExtConnected(false)
-    setExtConnecting(false)
-    setExtAddress(null)
-    setExtChainId(null)
-    setExtWalletClient(null)
-    setExtensionChainDetected(null)
-
-    // Disconnect wagmi
-    if (wagmiAccount.isConnected) {
-      wagmiDisconnect()
-    }
+    wagmiDisconnect()
+    luksoConnector?.closeModal()
 
     // Clear known UP address
     setKnownUpAddressInternal(null)
@@ -422,46 +202,7 @@ export function useWallet() {
 
     setProfileData(null)
     setError(null)
-    setConnectionMethod(null)
-  }, [wagmiAccount.isConnected, wagmiDisconnect])
-
-  // === EXTENSION EVENT LISTENERS ===
-  useEffect(() => {
-    if (!extConnected) return
-    const provider = getProvider()
-    if (!provider) return
-
-    const handleAccountsChanged = (accounts: unknown) => {
-      const accs = accounts as string[]
-      if (accs.length === 0) {
-        disconnect()
-      } else if (extConnected) {
-        setExtAddress(accs[0] as Address)
-        if (publicClient) {
-          fetchProfileData(accs[0] as Address, publicClient)
-        }
-      }
-    }
-
-    const handleChainChanged = () => {
-      // Persist known UP address before reload so it survives the chain switch
-      if (knownUpAddress) {
-        localStorage.setItem(LS_KNOWN_UP_ADDRESS, knownUpAddress)
-      }
-      if (originalChainId) {
-        localStorage.setItem(LS_ORIGINAL_CHAIN_ID, originalChainId.toString())
-      }
-      window.location.reload()
-    }
-
-    provider.on('accountsChanged', handleAccountsChanged)
-    provider.on('chainChanged', handleChainChanged)
-
-    return () => {
-      provider.removeListener('accountsChanged', handleAccountsChanged)
-      provider.removeListener('chainChanged', handleChainChanged)
-    }
-  }, [extConnected, getProvider, disconnect, publicClient, fetchProfileData, knownUpAddress, originalChainId])
+  }, [wagmiDisconnect, luksoConnector])
 
   // === PROFILE IMPORT: check if UP exists on current chain ===
   const checkUpExistsOnChain = useCallback(async (): Promise<boolean> => {
@@ -478,14 +219,10 @@ export function useWallet() {
   // Import the known UP as the active address for this chain
   const importProfile = useCallback(() => {
     if (!knownUpAddress) return
-    if (extConnected) {
-      setExtAddress(knownUpAddress)
-    }
-    // Trigger profile re-fetch for the imported address
     if (publicClient) {
       fetchProfileData(knownUpAddress, publicClient)
     }
-  }, [knownUpAddress, extConnected, publicClient, fetchProfileData])
+  }, [knownUpAddress, publicClient, fetchProfileData])
 
   // Whether the UI should show the ProfileImport section (connected case)
   const needsProfileImport = !!(
@@ -497,16 +234,20 @@ export function useWallet() {
     address?.toLowerCase() !== knownUpAddress.toLowerCase()
   )
 
-  // Whether we're in the "not connected but chain detected" import flow.
-  // True when: extension connection failed, we detected a different chain,
-  // and we have a known UP address from a previous session.
-  const pendingProfileImport = !!(
-    !isConnected &&
-    knownUpAddress &&
-    originalChainId &&
-    extensionChainDetected &&
-    extensionChainDetected !== originalChainId
-  )
+  // Get the raw provider from the wagmi connector (for up_import calls)
+  const getProvider = useCallback(() => {
+    if (!wagmiConnector) return null
+    // Return a provider-like object that can call up_import
+    return {
+      request: async (args: { method: string; params?: unknown[] }) => {
+        const provider = await wagmiConnector.getProvider()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (provider as any).request(args)
+      },
+      on: () => {},
+      removeListener: () => {},
+    }
+  }, [wagmiConnector])
 
   return {
     isConnected,
@@ -518,18 +259,20 @@ export function useWallet() {
     publicClient,
     profileData,
     connectionMethod,
-    isExtensionAvailable,
-    isWalletConnectAvailable: isWalletConnectConfigured,
+    isExtensionAvailable: true, // up-modal handles detection
+    isWalletConnectAvailable: true, // up-modal handles WalletConnect
     isWalletClientReady: isConnected && walletClient !== null,
     knownUpAddress,
     setKnownUpAddress,
     originalChainId,
     needsProfileImport,
-    pendingProfileImport,
-    extensionChainDetected,
+    pendingProfileImport: false, // up-modal handles all connection flows
+    extensionChainDetected: null as number | null, // no longer needed
     getProvider,
-    connectExtension,
-    connectWalletConnect,
+    connect,
+    // Legacy aliases for backward compatibility with App.tsx
+    connectExtension: connect,
+    connectWalletConnect: connect,
     disconnect,
     switchNetwork,
     checkUpExistsOnChain,

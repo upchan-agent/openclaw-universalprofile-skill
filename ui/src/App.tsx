@@ -280,13 +280,10 @@ function App() {
             isConnecting={wallet.isConnecting}
             address={wallet.address}
             profileData={wallet.profileData}
-            isExtensionAvailable={wallet.isExtensionAvailable}
-            isWalletConnectAvailable={wallet.isWalletConnectAvailable}
             connectionMethod={wallet.connectionMethod}
             error={wallet.error}
             chainId={effectiveChainId}
-            onConnectExtension={wallet.connectExtension}
-            onConnectWalletConnect={wallet.connectWalletConnect}
+            onConnect={wallet.connect}
             onDisconnect={wallet.disconnect}
           />
         </section>}
