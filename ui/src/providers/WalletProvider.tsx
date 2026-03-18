@@ -1,7 +1,7 @@
-import { type ReactNode, useEffect, useState, createContext, useContext } from 'react'
+import { type ReactNode, useEffect, useState, useRef, createContext, useContext } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider, type Config } from 'wagmi'
-import { setupLuksoConnector } from '@lukso/up-modal'
+import { setupLuksoConnector, wagmi as wagmiService } from '@lukso/up-modal'
 import type { LuksoConnector } from '@lukso/up-modal'
 import { createMultiChainWagmiConfig } from '../lib/walletConfig'
 
@@ -19,13 +19,22 @@ function isInIframe(): boolean {
 // Context to share the LuksoConnector with hooks
 const LuksoConnectorContext = createContext<LuksoConnector | null>(null)
 
+// Context for updating the modal's target chain
+const SetModalChainContext = createContext<((chainId: number) => void) | null>(null)
+
 export function useLuksoConnector(): LuksoConnector | null {
   return useContext(LuksoConnectorContext)
+}
+
+export function useSetModalChain(): (chainId: number) => void {
+  const fn = useContext(SetModalChainContext)
+  return fn || (() => {})
 }
 
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [connector, setConnector] = useState<LuksoConnector | null>(null)
   const [wagmiConfig, setWagmiConfig] = useState<Config | null>(null)
+  const wagmiConfigRef = useRef<Config | null>(null)
 
   useEffect(() => {
     const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID
@@ -33,6 +42,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     // Create our own wagmi config with all supported chains (LUKSO, Ethereum, Base)
     // up-modal's built-in config only supports LUKSO chains
     const customWagmiConfig = createMultiChainWagmiConfig()
+    wagmiConfigRef.current = customWagmiConfig
 
     setupLuksoConnector({
       theme: 'light',
@@ -48,6 +58,17 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  // Callback to update the modal's target chain before opening
+  const setModalChain = useRef((chainId: number) => {
+    if (wagmiConfigRef.current) {
+      wagmiService.configure({
+        wagmiConfig: wagmiConfigRef.current,
+        chainId,
+        connectors: { eoa: false },
+      })
+    }
+  })
+
   if (!connector || !wagmiConfig) {
     return null
   }
@@ -56,7 +77,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <LuksoConnectorContext.Provider value={connector}>
-          {children}
+          <SetModalChainContext.Provider value={setModalChain.current}>
+            {children}
+          </SetModalChainContext.Provider>
         </LuksoConnectorContext.Provider>
       </QueryClientProvider>
     </WagmiProvider>

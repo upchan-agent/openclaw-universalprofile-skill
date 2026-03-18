@@ -211,6 +211,11 @@ function App() {
     }
   }, [wallet])
 
+  // Connect with the currently selected chain
+  const handleConnect = useCallback(() => {
+    wallet.connect(effectiveChainId ?? undefined)
+  }, [wallet, effectiveChainId])
+
   // Handle profile selection from search
   const handleProfileSelect = useCallback((address: Address) => {
     wallet.setKnownUpAddress(address)
@@ -258,7 +263,7 @@ function App() {
             getProvider={wallet.getProvider}
             isPendingImport={wallet.pendingProfileImport || (!wallet.isConnected && !wallet.pendingProfileImport)}
             isConnected={wallet.isConnected}
-            onConnect={wallet.connect}
+            onConnect={handleConnect}
           />
         </div>
       )}
@@ -285,7 +290,7 @@ function App() {
             connectionMethod={wallet.connectionMethod}
             error={wallet.error}
             chainId={effectiveChainId}
-            onConnect={wallet.connect}
+            onConnect={handleConnect}
             onDisconnect={wallet.disconnect}
           />
         </section>}

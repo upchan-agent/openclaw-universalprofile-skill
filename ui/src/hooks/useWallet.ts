@@ -10,7 +10,7 @@ import {
 import { useAccount, useDisconnect, useWalletClient as useWagmiWalletClient, useSwitchChain } from 'wagmi'
 import { CHAINS, LSP0_ABI, DATA_KEYS, getChainById } from '../constants'
 import { fetchLuksoProfileData } from './useLuksoProfile'
-import { useLuksoConnector } from '../providers/WalletProvider'
+import { useLuksoConnector, useSetModalChain } from '../providers/WalletProvider'
 
 // localStorage keys for persisting UP address across chain-change reloads
 const LS_KNOWN_UP_ADDRESS = 'openclaw_known_up_address'
@@ -39,6 +39,7 @@ export type ConnectionMethod = 'extension' | 'walletconnect' | 'up-provider' | n
 
 export function useWallet() {
   const luksoConnector = useLuksoConnector()
+  const setModalChain = useSetModalChain()
 
   // === WAGMI HOOKS (driven by up-modal's wagmi config) ===
   const { address: wagmiAddress, isConnected: wagmiConnected, isConnecting: wagmiConnecting, chainId: wagmiChainId, connector: wagmiConnector } = useAccount()
@@ -177,15 +178,21 @@ export function useWallet() {
   }, [address, publicClient, fetchProfileData])
 
   // === CONNECT (opens up-modal) ===
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (targetChainId?: number) => {
     if (!luksoConnector) {
       setError('Wallet modal not initialized yet. Please try again.')
       return
     }
     setError(null)
     manuallyDisconnected.current = false
+
+    // Update the modal's target chain before opening so it doesn't force LUKSO
+    if (targetChainId) {
+      setModalChain(targetChainId)
+    }
+
     luksoConnector.showSignInModal()
-  }, [luksoConnector])
+  }, [luksoConnector, setModalChain])
 
   // === DISCONNECT ===
   const disconnect = useCallback(() => {
@@ -225,13 +232,13 @@ export function useWallet() {
   }, [knownUpAddress, publicClient, fetchProfileData])
 
   // Whether the UI should show the ProfileImport section (connected case)
+  // Shows when: connected, have a known UP, but the connected address doesn't match
+  // (meaning the profile hasn't been imported on this chain yet)
   const needsProfileImport = !!(
     knownUpAddress &&
     isConnected &&
-    originalChainId &&
-    chainId &&
-    chainId !== originalChainId &&
-    address?.toLowerCase() !== knownUpAddress.toLowerCase()
+    address &&
+    address.toLowerCase() !== knownUpAddress.toLowerCase()
   )
 
   // Get the raw provider from the wagmi connector (for up_import calls)
