@@ -12,9 +12,8 @@ import { CHAINS, LSP0_ABI, DATA_KEYS, getChainById } from '../constants'
 import { fetchLuksoProfileData } from './useLuksoProfile'
 import { useLuksoConnector, useSetModalChain } from '../providers/WalletProvider'
 
-// localStorage keys for persisting UP address across chain-change reloads
-const LS_KNOWN_UP_ADDRESS = 'openclaw_known_up_address'
-const LS_ORIGINAL_CHAIN_ID = 'openclaw_original_chain_id'
+// Note: knownUpAddress is intentionally NOT persisted in localStorage
+// so users can search for a different profile on each visit
 
 export interface WalletState {
   isConnected: boolean
@@ -51,15 +50,10 @@ export function useWallet() {
   const [error, setError] = useState<string | null>(null)
   const [profileData, setProfileData] = useState<ProfileData | null>(null)
 
-  // === KNOWN UP ADDRESS (persists across chain switches) ===
-  const [knownUpAddress, setKnownUpAddressInternal] = useState<Address | null>(() => {
-    const stored = localStorage.getItem(LS_KNOWN_UP_ADDRESS)
-    return stored ? (stored as Address) : null
-  })
-  const [originalChainId, setOriginalChainId] = useState<number | null>(() => {
-    const stored = localStorage.getItem(LS_ORIGINAL_CHAIN_ID)
-    return stored ? parseInt(stored, 10) : null
-  })
+  // === KNOWN UP ADDRESS (session-only, NOT persisted across reloads) ===
+  // This lets users search for a different profile each time they visit
+  const [knownUpAddress, setKnownUpAddressInternal] = useState<Address | null>(null)
+  const [originalChainId, setOriginalChainId] = useState<number | null>(null)
 
   // Track explicit disconnects to prevent auto-reconnection
   const manuallyDisconnected = useRef(false)
@@ -103,10 +97,8 @@ export function useWallet() {
   useEffect(() => {
     if (isConnected && address && !knownUpAddress) {
       setKnownUpAddressInternal(address)
-      localStorage.setItem(LS_KNOWN_UP_ADDRESS, address)
       if (chainId) {
         setOriginalChainId(chainId)
-        localStorage.setItem(LS_ORIGINAL_CHAIN_ID, chainId.toString())
       }
     }
   }, [isConnected, address, chainId, knownUpAddress])
@@ -114,9 +106,7 @@ export function useWallet() {
   // === SET KNOWN UP ADDRESS (from external sources like ProfileSearch) ===
   const setKnownUpAddress = useCallback((addr: Address) => {
     setKnownUpAddressInternal(addr)
-    localStorage.setItem(LS_KNOWN_UP_ADDRESS, addr)
     setOriginalChainId(42)
-    localStorage.setItem(LS_ORIGINAL_CHAIN_ID, '42')
   }, [])
 
   // === SWITCH NETWORK ===
@@ -204,8 +194,6 @@ export function useWallet() {
     // Clear known UP address
     setKnownUpAddressInternal(null)
     setOriginalChainId(null)
-    localStorage.removeItem(LS_KNOWN_UP_ADDRESS)
-    localStorage.removeItem(LS_ORIGINAL_CHAIN_ID)
 
     setProfileData(null)
     setError(null)

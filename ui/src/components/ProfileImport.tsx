@@ -87,43 +87,43 @@ export function ProfileImport({
   }, [localPublicClient, knownUpAddress])
 
   const handleImport = useCallback(async () => {
-    // If we're in the pending import flow (not connected), try up_import first
-    if (isPendingImport && getProvider) {
-      setImporting(true)
-      setImportError(null)
-      setShowManualInstructions(false)
-
-      const provider = getProvider()
-      if (provider) {
-        try {
-          // Try the UP extension's up_import method
-          await provider.request({
-            method: 'up_import',
-            params: [knownUpAddress],
-          })
-          console.log('[ProfileImport] up_import succeeded')
-
-          // Import succeeded — retry the full extension connection
-          if (onRetryConnect) {
-            await onRetryConnect()
-          }
-          setImporting(false)
-          return
-        } catch (err) {
-          console.warn('[ProfileImport] up_import not supported or failed:', err)
-          // Method not supported — show manual instructions
-          setShowManualInstructions(true)
-          setImporting(false)
-          return
-        }
-      }
-
-      setImporting(false)
+    if (!getProvider) {
+      onImport()
+      return
     }
 
-    // Fallback: standard import for the already-connected case
+    setImporting(true)
+    setImportError(null)
+    setShowManualInstructions(false)
+
+    const provider = getProvider()
+    if (provider) {
+      try {
+        // Call the UP extension's up_import RPC method with the profile address
+        await provider.request({
+          method: 'up_import',
+          params: [knownUpAddress],
+        })
+        console.log('[ProfileImport] up_import succeeded')
+
+        // Import succeeded — retry the full connection so wagmi picks up the new address
+        if (onRetryConnect) {
+          await onRetryConnect()
+        }
+        setImporting(false)
+        return
+      } catch (err) {
+        console.warn('[ProfileImport] up_import failed:', err)
+        // Method not supported or user rejected — show manual instructions
+        setShowManualInstructions(true)
+        setImporting(false)
+        return
+      }
+    }
+
+    setImporting(false)
     onImport()
-  }, [isPendingImport, getProvider, knownUpAddress, onRetryConnect, onImport])
+  }, [getProvider, knownUpAddress, onRetryConnect, onImport])
 
   const handleRetryAfterManualImport = useCallback(async () => {
     if (onRetryConnect) {
