@@ -1,7 +1,7 @@
 ---
 name: universal-profile
 description: Manage LUKSO Universal Profiles — identity, permissions, tokens, blockchain operations. Cross-chain support for Base and Ethereum.
-version: 0.7.0
+version: 0.9.0
 author: frozeman
 ---
 
