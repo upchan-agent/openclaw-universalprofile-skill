@@ -1,11 +1,30 @@
 import { type ReactNode, useEffect, useState, useRef, createContext, useContext } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider, type Config } from 'wagmi'
+import { watchAccount } from '@wagmi/core'
 import { setupLuksoConnector, wagmi as wagmiService } from '@lukso/up-modal'
 import type { LuksoConnector } from '@lukso/up-modal'
 import { createMultiChainWagmiConfig } from '../lib/walletConfig'
 
 const queryClient = new QueryClient()
+
+/** Force-close the up-modal connect dialog via DOM */
+function forceCloseModal() {
+  const modal = document.querySelector('connect-modal') as HTMLElement | null
+  if (modal) {
+    // Try the standard close method first
+    if ('close' in modal && typeof (modal as any).close === 'function') {
+      (modal as any).close()
+    }
+    // Also remove the open attribute and hide it
+    modal.removeAttribute('open')
+    // Remove the backdrop/overlay
+    const backdrop = modal.shadowRoot?.querySelector('.modal-backdrop, .overlay, [part="backdrop"]') as HTMLElement | null
+    if (backdrop) backdrop.style.display = 'none'
+    // Hide the whole element
+    modal.style.display = 'none'
+  }
+}
 
 function isInIframe(): boolean {
   if (typeof window === 'undefined') return false
@@ -52,9 +71,22 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       connectors: {
         eoa: false,
       },
+      onConnect: () => {
+        forceCloseModal()
+      },
     }).then((c) => {
       setConnector(c)
       setWagmiConfig(customWagmiConfig as unknown as Config)
+
+      // Watch for account changes via wagmi — close the modal when connected
+      // This is a fallback for when up-modal's own onConnect doesn't fire (non-LUKSO chains)
+      watchAccount(customWagmiConfig as any, {
+        onChange(account) {
+          if (account.isConnected) {
+            forceCloseModal()
+          }
+        },
+      })
     })
   }, [])
 
