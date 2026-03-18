@@ -293,9 +293,69 @@ Known collection "Art by the Machine": `0x439f6793b10b0a9d88ad05293a074a8141f19d
 - Test on testnet (4201) first.
 - `config set` restricted to safe keys only.
 
+## ERC725.js — Reading & Writing UP Data
+
+**Package:** `@erc725/erc725.js` — the standard library for reading, encoding, and decoding ERC725Y data on Universal Profiles. **Use this for all profile data operations** (reading profiles, permissions, assets, encoding setData payloads).
+
+Full reference: [`references/ERC725-JS.md`](references/ERC725-JS.md)
+
+### Quick Start
+```js
+import ERC725 from '@erc725/erc725.js';
+import { LSP3Schema, LSP5Schema, LSP6Schema } from '@erc725/erc725.js/schemas';
+
+// Connect to a UP
+const erc725 = new ERC725(LSP3Schema, upAddress, 'https://42.rpc.thirdweb.com', {
+  ipfsGateway: 'https://api.universalprofile.cloud/ipfs/',
+});
+
+// Read profile (fetches + verifies IPFS content)
+const profile = await erc725.fetchData('LSP3Profile');
+
+// Encode data for setData/setDataBatch
+const { keys, values } = erc725.encodeData([{
+  keyName: 'LSP3Profile',
+  value: { json: profileJson, url: 'ipfs://Qm...' },
+}]);
+```
+
+### Key Operations
+- **`getData(key)`** — read raw decoded value from contract
+- **`fetchData(key)`** — read + download linked content (IPFS) + verify hash
+- **`encodeData(data)`** — encode for `setData()`/`setDataBatch()` → `{ keys, values }`
+- **`decodeData(data)`** — decode raw contract bytes back to structured data
+- **`encodeKeyName(name)`** — hash a key name to bytes32
+- **Built-in schemas:** LSP1–LSP12, LSP17 (import from `@erc725/erc725.js/schemas`)
+
+### Common Patterns
+```js
+// Read permissions
+const erc725 = new ERC725(LSP6Schema, upAddress, RPC_URL);
+const perms = await erc725.getData({
+  keyName: 'AddressPermissions:Permissions:<address>',
+  dynamicKeyParts: [controllerAddress],
+});
+
+// Read received assets
+const erc725 = new ERC725(LSP5Schema, upAddress, RPC_URL);
+const assets = await erc725.getData('LSP5ReceivedAssets[]');
+
+// Encode VerifiableURI (auto-hashes JSON)
+erc725.encodeData([{
+  keyName: 'LSP3Profile',
+  value: { json: myJson, url: 'ipfs://QmNew...' },
+}]);
+```
+
+### Important Notes
+- **Array encoding:** Always set `totalArrayLength` + `startingIndex` when modifying arrays to avoid corrupting contract state
+- **Dynamic keys:** Use `dynamicKeyParts` for Mapping key types (e.g., permissions per address)
+- **Backend:** Also install `isomorphic-fetch`
+- **VerifiableURI:** Pass `{ json, url }` for auto-hashing, or `{ verification, url }` for pre-computed
+
 ## Dependencies
 
-Node.js 18+, ethers.js v6, viem.
+Node.js 18+, ethers.js v6, @erc725/erc725.js, viem.
 
 ## Links
 
