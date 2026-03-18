@@ -1,4 +1,6 @@
-import { defineChain } from 'viem'
+import { defineChain, createClient, http } from 'viem'
+import { createConfig, createStorage, injected } from '@wagmi/core'
+import type { Config } from '@wagmi/core'
 
 // Define LUKSO chains
 export const luksoMainnet = defineChain({
@@ -50,5 +52,25 @@ export const ethereumNetwork = defineChain({
   },
 })
 
-// All supported networks
-export const networks = [luksoMainnet, baseNetwork, ethereumNetwork, luksoTestnetNetwork]
+// All supported networks (LUKSO first as default)
+export const networks = [luksoMainnet, baseNetwork, ethereumNetwork, luksoTestnetNetwork] as const
+
+/**
+ * Create a custom wagmi config with all our supported chains.
+ * up-modal's built-in config only supports LUKSO chains — we need
+ * Ethereum, Base, etc. for cross-chain authorization.
+ */
+export function createMultiChainWagmiConfig(): Config {
+  return createConfig({
+    chains: [luksoMainnet, baseNetwork, ethereumNetwork, luksoTestnetNetwork],
+    connectors: [injected({ shimDisconnect: true })],
+    multiInjectedProviderDiscovery: true,
+    storage: createStorage({
+      key: 'up-wagmi',
+      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    }),
+    client({ chain }) {
+      return createClient({ chain, transport: http() })
+    },
+  }) as unknown as Config
+}

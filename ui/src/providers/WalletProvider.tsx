@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider, type Config } from 'wagmi'
 import { setupLuksoConnector } from '@lukso/up-modal'
 import type { LuksoConnector } from '@lukso/up-modal'
+import { createMultiChainWagmiConfig } from '../lib/walletConfig'
 
 const queryClient = new QueryClient()
 
@@ -29,8 +30,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID
 
+    // Create our own wagmi config with all supported chains (LUKSO, Ethereum, Base)
+    // up-modal's built-in config only supports LUKSO chains
+    const customWagmiConfig = createMultiChainWagmiConfig()
+
     setupLuksoConnector({
       theme: 'light',
+      wagmiConfig: customWagmiConfig,
       ...(projectId ? { walletConnect: { projectId } } : {}),
       ...(isInIframe() ? { embeddedWallet: { enabled: true } } : {}),
       connectors: {
@@ -38,7 +44,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       },
     }).then((c) => {
       setConnector(c)
-      setWagmiConfig(c.wagmiConfig)
+      setWagmiConfig(customWagmiConfig as unknown as Config)
     })
   }, [])
 
