@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { createPublicClient, http, type Chain } from 'viem'
 import { LuksoProfileAvatar } from './LuksoProfileAvatar'
 import { useLuksoProfile } from '../hooks/useLuksoProfile'
 import { formatAddress } from '../utils'
-import { getChainById } from '../constants'
+import { CHAINS, getChainById } from '../constants'
 import type { Address } from 'viem'
 
 interface UPProvider {
@@ -13,7 +14,7 @@ interface ProfileImportProps {
   knownUpAddress: Address
   currentChainId: number
   originalChainId: number
-  checkUpExistsOnChain: () => Promise<boolean>
+  checkUpExistsOnChain?: () => Promise<boolean>
   onImport: () => void
   /** Retry connecting the extension after a successful import */
   onRetryConnect?: () => Promise<void>
@@ -27,7 +28,8 @@ export function ProfileImport({
   knownUpAddress,
   currentChainId,
   originalChainId,
-  checkUpExistsOnChain,
+  // checkUpExistsOnChain is kept in the interface for backward compat but no longer used
+  // — we now create a local public client to check directly
   onImport,
   onRetryConnect,
   getProvider,
@@ -47,20 +49,36 @@ export function ProfileImport({
   const chainName = currentChain?.name ?? 'this network'
   const originalChainName = originalChain?.name ?? 'the original network'
 
+  // Create a public client for the current chain — this works even when not connected
+  const localPublicClient = useMemo(() => {
+    const knownChain = getChainById(currentChainId)
+    const chain: Chain = knownChain
+      ? (knownChain as unknown as Chain)
+      : ({ ...CHAINS.lukso, id: currentChainId } as unknown as Chain)
+    return createPublicClient({ chain, transport: http() })
+  }, [currentChainId])
+
   useEffect(() => {
     let cancelled = false
     setChecking(true)
     setExistsOnChain(null)
 
-    checkUpExistsOnChain().then((exists) => {
+    // Use local public client to check directly — works without wallet connection
+    localPublicClient.getCode({ address: knownUpAddress }).then((code) => {
       if (!cancelled) {
-        setExistsOnChain(exists)
+        setExistsOnChain(!!code && code !== '0x')
+        setChecking(false)
+      }
+    }).catch((err) => {
+      console.error('[ProfileImport] getCode check failed:', err)
+      if (!cancelled) {
+        setExistsOnChain(false)
         setChecking(false)
       }
     })
 
     return () => { cancelled = true }
-  }, [checkUpExistsOnChain])
+  }, [localPublicClient, knownUpAddress])
 
   const handleImport = useCallback(async () => {
     // If we're in the pending import flow (not connected), try up_import first

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { generateAuthUrl } from '../utils'
 import { LuksoProfileAvatar } from './LuksoProfileAvatar'
+import { useLuksoProfile } from '../hooks/useLuksoProfile'
 import type { Address } from 'viem'
 
 interface ControllerInfoProps {
@@ -19,6 +20,9 @@ export function ControllerInfo({
   const [showQR, setShowQR] = useState(false)
   const [isValidAddress, setIsValidAddress] = useState(false)
   const [copied, setCopied] = useState(false)
+
+  // Fetch LUKSO profile data for the controller address (if it's a UP)
+  const controllerProfile = useLuksoProfile(isValidAddress ? inputValue : null)
 
   useEffect(() => {
     if (controllerAddress) {
@@ -103,11 +107,21 @@ export function ControllerInfo({
             <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg flex items-center gap-3">
               <LuksoProfileAvatar
                 address={controllerAddress}
+                profileUrl={controllerProfile.profileImageUrl}
+                name={controllerProfile.name}
                 size="md"
                 showIdenticon={true}
               />
               <div className="flex-1">
-                <p className="text-sm font-medium">Controller</p>
+                <p className="text-sm font-medium">
+                  {controllerProfile.loading ? (
+                    <span className="text-gray-400">Loading...</span>
+                  ) : controllerProfile.name ? (
+                    controllerProfile.name
+                  ) : (
+                    'Controller'
+                  )}
+                </p>
                 <p className="text-xs text-gray-500 font-mono">
                   {controllerAddress.slice(0, 10)}...{controllerAddress.slice(-8)}
                 </p>
