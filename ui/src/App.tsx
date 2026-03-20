@@ -312,7 +312,7 @@ function App() {
         <div className="max-w-2xl mx-auto px-4 pt-4">
           <ProfileImport
             knownUpAddress={wallet.knownUpAddress}
-            currentChainId={effectiveChainId!}
+            currentChainId={selectedChainId ?? effectiveChainId!}
             originalChainId={wallet.originalChainId ?? 42}
             checkUpExistsOnChain={wallet.checkUpExistsOnChain}
             onImport={wallet.importProfile}
