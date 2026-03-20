@@ -264,7 +264,7 @@ export function useWallet() {
     connectionMethod,
     isExtensionAvailable: true, // up-modal handles detection
     isWalletConnectAvailable: true, // up-modal handles WalletConnect
-    isWalletClientReady: isConnected && walletClient !== null,
+    isWalletClientReady: isConnected && (walletClient !== null || typeof window !== 'undefined' && (window as any).lukso),
     knownUpAddress,
     setKnownUpAddress,
     originalChainId,
