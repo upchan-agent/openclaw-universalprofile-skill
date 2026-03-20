@@ -10,7 +10,7 @@ import {
 import { useAccount, useDisconnect, useWalletClient as useWagmiWalletClient, useSwitchChain } from 'wagmi'
 import { CHAINS, LSP0_ABI, DATA_KEYS, getChainById } from '../constants'
 import { fetchLuksoProfileData } from './useLuksoProfile'
-import { useLuksoConnector, useSetModalChain } from '../providers/WalletProvider'
+import { useLuksoConnector, useSetModalChain, markModalOpening } from '../providers/WalletProvider'
 
 // Note: knownUpAddress is intentionally NOT persisted in localStorage
 // so users can search for a different profile on each visit
@@ -65,13 +65,7 @@ export function useWallet() {
     }
   }, [wagmiConnected, wagmiDisconnect])
 
-  // === AUTO-CLOSE MODAL on successful connection ===
-  // up-modal may not auto-close when connecting on non-LUKSO chains
-  useEffect(() => {
-    if (wagmiConnected && !manuallyDisconnected.current && luksoConnector) {
-      luksoConnector.closeModal()
-    }
-  }, [wagmiConnected, luksoConnector])
+  // Note: modal auto-close is handled by WalletProvider's watchAccount + markModalOpening
 
   // === COMPUTED STATE ===
   const isConnected = wagmiConnected && !manuallyDisconnected.current
@@ -189,6 +183,7 @@ export function useWallet() {
       setModalChain(targetChainId)
     }
 
+    markModalOpening()
     luksoConnector.showSignInModal()
   }, [luksoConnector, setModalChain])
 

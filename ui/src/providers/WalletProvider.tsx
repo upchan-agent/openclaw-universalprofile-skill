@@ -41,6 +41,14 @@ export function useSetModalChain(): (chainId: number) => void {
   return fn || (() => {})
 }
 
+/** Mark that we're actively opening the modal — so watchAccount can close it on connect */
+export function markModalOpening() {
+  isModalOpeningRef.current = true
+}
+
+// Track whether we're actively opening the modal (to avoid closing it on stale watchAccount events)
+const isModalOpeningRef = { current: false }
+
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [connector, setConnector] = useState<LuksoConnector | null>(null)
   const [wagmiConfig, setWagmiConfig] = useState<Config | null>(null)
@@ -63,6 +71,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         eoa: false,
       },
       onConnect: () => {
+        isModalOpeningRef.current = false
         forceCloseModal()
       },
     }).then((c) => {
@@ -71,12 +80,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setWagmiConfig(c.wagmiConfig as unknown as Config)
 
       // Watch for account changes via wagmi — close the modal when connected
-      // This is a fallback for when up-modal's own onConnect doesn't fire (non-LUKSO chains)
+      // Only close if we're actively opening the modal (isModalOpeningRef)
       watchAccount(c.wagmiConfig as any, {
         onChange(account) {
-          console.log('[WalletProvider] watchAccount:', account.status, account.address, account.chainId)
-          if (account.isConnected) {
-            console.log('[WalletProvider] Connection detected, closing modal')
+          console.log('[WalletProvider] watchAccount:', account.status, account.address, account.chainId, 'modalOpening:', isModalOpeningRef.current)
+          if (account.isConnected && isModalOpeningRef.current) {
+            console.log('[WalletProvider] Connection detected during modal flow, closing modal')
+            isModalOpeningRef.current = false
             forceCloseModal()
           }
         },
