@@ -204,10 +204,67 @@ function App() {
     : 'LUKSO'
 
   // Handle network switch — works both pre and post connection
-  const handleNetworkSwitch = useCallback((chainId: number) => {
+  // After switching, checks if the known UP exists on the new chain
+  // and whether the extension has it as the active account
+  const handleNetworkSwitch = useCallback(async (chainId: number) => {
     setSelectedChainId(chainId)
     if (wallet.isConnected) {
       wallet.switchNetwork(chainId)
+    }
+
+    // If we have a known UP address from a previous search/connection,
+    // check if it exists on the new chain and if the extension has it
+    if (wallet.knownUpAddress) {
+      try {
+        // Check if UP contract exists on the new chain
+        const chain = getChainById(chainId)
+        if (chain) {
+          const { createPublicClient, http } = await import('viem')
+          const client = createPublicClient({
+            chain: chain as any,
+            transport: http(),
+          })
+          const code = await client.getCode({ address: wallet.knownUpAddress })
+          const existsOnChain = !!code && code !== '0x'
+          console.log(`[App] UP ${wallet.knownUpAddress} on chain ${chainId}: exists=${existsOnChain}`)
+
+          if (!existsOnChain) {
+            // Profile doesn't exist on this chain — ProfileImport will show "not found"
+            return
+          }
+
+          // Profile exists — check if extension has it as active account
+          if (typeof window !== 'undefined' && (window as any).lukso) {
+            const lukso = (window as any).lukso
+            // Switch extension to the new chain first
+            try {
+              await lukso.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: `0x${chainId.toString(16)}` }],
+              })
+            } catch (e) {
+              console.log('[App] Extension chain switch failed (may not support chain):', e)
+            }
+
+            // Check what accounts the extension returns on this chain
+            const accounts = await lukso.request({ method: 'eth_accounts' }) as string[]
+            console.log('[App] Extension accounts on chain', chainId, ':', accounts)
+
+            const hasProfile = accounts.some(
+              (a: string) => a.toLowerCase() === wallet.knownUpAddress!.toLowerCase()
+            )
+            if (hasProfile) {
+              console.log('[App] Extension already has the profile on this chain')
+              // Profile is imported — needsProfileImport will be false
+            } else {
+              console.log('[App] Extension does NOT have the profile on this chain — import needed')
+              // ProfileImport section will show via needsProfileImport or the render condition
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[App] Network switch profile check failed:', err)
+      }
     }
   }, [wallet])
 
@@ -251,12 +308,12 @@ function App() {
 
       {/* Profile Import — shown when switching chains with a known UP.
           Also shown when NOT connected but extension chain is detected (pendingProfileImport). */}
-      {(wallet.needsProfileImport || wallet.pendingProfileImport || (!wallet.isConnected && wallet.knownUpAddress && wallet.originalChainId && selectedChainId && selectedChainId !== 42 && selectedChainId !== 4201)) && wallet.knownUpAddress && wallet.originalChainId && (
+      {(wallet.needsProfileImport || wallet.pendingProfileImport || (wallet.knownUpAddress && selectedChainId && selectedChainId !== 42 && selectedChainId !== 4201)) && wallet.knownUpAddress && (
         <div className="max-w-2xl mx-auto px-4 pt-4">
           <ProfileImport
             knownUpAddress={wallet.knownUpAddress}
             currentChainId={effectiveChainId!}
-            originalChainId={wallet.originalChainId}
+            originalChainId={wallet.originalChainId ?? 42}
             checkUpExistsOnChain={wallet.checkUpExistsOnChain}
             onImport={wallet.importProfile}
             onRetryConnect={wallet.connectExtension}
