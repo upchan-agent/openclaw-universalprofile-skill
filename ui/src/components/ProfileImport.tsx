@@ -34,12 +34,12 @@ export function ProfileImport({
   originalChainId,
   // checkUpExistsOnChain is kept in the interface for backward compat but no longer used
   // — we now create a local public client to check directly
-  onImport,
+  onImport: _onImport,
   onRetryConnect,
   getProvider,
   isPendingImport,
   isConnected = false,
-  onConnect,
+  onConnect: _onConnect,
 }: ProfileImportProps) {
   const [checking, setChecking] = useState(true)
   const [existsOnChain, setExistsOnChain] = useState<boolean | null>(null)
@@ -87,29 +87,41 @@ export function ProfileImport({
   }, [localPublicClient, knownUpAddress])
 
   const handleImport = useCallback(async () => {
-    console.log('[ProfileImport] handleImport called, getProvider:', !!getProvider, 'isConnected:', isConnected)
+    console.log('[ProfileImport] handleImport called, knownUpAddress:', knownUpAddress)
     
-    if (!getProvider) {
-      console.log('[ProfileImport] No getProvider, falling back to onImport')
-      onImport()
-      return
-    }
-
-    const provider = getProvider()
-    console.log('[ProfileImport] provider:', !!provider, 'knownUpAddress:', knownUpAddress)
-    
-    if (!provider) {
-      console.log('[ProfileImport] Provider is null, falling back to onImport')
-      onImport()
-      return
-    }
-
     setImporting(true)
     setImportError(null)
     setShowManualInstructions(false)
 
+    // Get the UP extension provider — try multiple sources:
+    // 1. window.lukso (UP Extension direct)
+    // 2. wagmi connector provider (if connected)
+    // 3. EIP-6963 announced providers
+    let provider: any = null
+
+    // Try window.lukso first — works without wagmi connection
+    if (typeof window !== 'undefined' && (window as any).lukso) {
+      provider = (window as any).lukso
+      console.log('[ProfileImport] Using window.lukso provider')
+    }
+    
+    // Fallback: try wagmi connector provider
+    if (!provider && getProvider) {
+      const wagmiProvider = getProvider()
+      if (wagmiProvider) {
+        provider = wagmiProvider
+        console.log('[ProfileImport] Using wagmi connector provider')
+      }
+    }
+
+    if (!provider) {
+      console.error('[ProfileImport] No UP extension provider found')
+      setImportError('UP Browser Extension not detected. Please install it first.')
+      setImporting(false)
+      return
+    }
+
     try {
-      // Call the UP extension's up_import RPC method with the profile address
       console.log('[ProfileImport] Calling up_import with:', knownUpAddress)
       await provider.request({
         method: 'up_import',
@@ -117,15 +129,13 @@ export function ProfileImport({
       })
       console.log('[ProfileImport] up_import succeeded')
 
-      // Import succeeded — show manual instructions to confirm in extension
-      // then user can retry connection
+      // Import succeeded — show instructions to confirm in extension, then reconnect
       setShowManualInstructions(true)
       setImporting(false)
     } catch (err: any) {
       console.warn('[ProfileImport] up_import failed:', err)
       const message = err?.message || String(err)
       
-      // If method not found/supported, show manual import instructions
       if (message.includes('not supported') || message.includes('not found') || message.includes('Method')) {
         setShowManualInstructions(true)
       } else {
@@ -133,7 +143,7 @@ export function ProfileImport({
       }
       setImporting(false)
     }
-  }, [getProvider, knownUpAddress, isConnected, onImport])
+  }, [knownUpAddress, getProvider])
 
   const handleRetryAfterManualImport = useCallback(async () => {
     if (onRetryConnect) {
@@ -235,12 +245,8 @@ export function ProfileImport({
               <div className="mt-3">
                 <button
                   onClick={() => {
-                    console.log('[ProfileImport] Button clicked, isConnected:', isConnected)
-                    if (isConnected) {
-                      handleImport()
-                    } else if (onConnect) {
-                      onConnect()
-                    }
+                    console.log('[ProfileImport] Button clicked — calling handleImport directly')
+                    handleImport()
                   }}
                   disabled={importing}
                   className={`inline-flex items-center gap-2 ${isConnected ? 'btn-primary' : 'btn-primary'}`}
@@ -253,27 +259,15 @@ export function ProfileImport({
                       </svg>
                       Importing...
                     </>
-                  ) : isConnected ? (
+                  ) : (
                     <>
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                       </svg>
                       Import Profile
                     </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                      Connect Wallet to Import
-                    </>
                   )}
                 </button>
-                {!isConnected && (
-                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    You need to connect your wallet first before importing the profile on this chain.
-                  </p>
-                )}
               </div>
             )}
           </div>
