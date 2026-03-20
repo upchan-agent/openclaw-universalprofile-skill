@@ -308,7 +308,7 @@ function App() {
 
       {/* Profile Import — shown when switching chains with a known UP.
           Also shown when NOT connected but extension chain is detected (pendingProfileImport). */}
-      {(wallet.needsProfileImport || wallet.pendingProfileImport || (wallet.knownUpAddress && selectedChainId && selectedChainId !== 42 && selectedChainId !== 4201)) && wallet.knownUpAddress && (
+      {(wallet.needsProfileImport || wallet.pendingProfileImport || (wallet.knownUpAddress && selectedChainId && selectedChainId !== 42 && selectedChainId !== 4201 && !(wallet.isConnected && wallet.address?.toLowerCase() === wallet.knownUpAddress?.toLowerCase()))) && wallet.knownUpAddress && (
         <div className="max-w-2xl mx-auto px-4 pt-4">
           <ProfileImport
             knownUpAddress={wallet.knownUpAddress}
