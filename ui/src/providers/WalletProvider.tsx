@@ -1,11 +1,14 @@
 import { type ReactNode, useEffect, useState, useRef, createContext, useContext } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider, type Config } from 'wagmi'
+import { createConfig, createStorage, injected } from '@wagmi/core'
+import { walletConnect } from '@wagmi/connectors'
+import { createClient, http } from 'viem'
+import { lukso, luksoTestnet } from 'viem/chains'
 import { watchAccount } from '@wagmi/core'
 import { setupLuksoConnector, wagmi as wagmiService } from '@lukso/up-modal'
 import type { LuksoConnector } from '@lukso/up-modal'
-// Note: we use up-modal's built-in wagmi config with chains.additional
-// instead of createMultiChainWagmiConfig, so walletConnect is included
+import { CHAINS } from '../constants'
 
 const queryClient = new QueryClient()
 
@@ -49,6 +52,43 @@ export function markModalOpening() {
 // Track whether we're actively opening the modal (to avoid closing it on stale watchAccount events)
 const isModalOpeningRef = { current: false }
 
+/**
+ * Create our own wagmi config with ALL chains (LUKSO + Ethereum + Base).
+ * We pass this to setupLuksoConnector so the modal uses it instead of
+ * creating its own (which only includes LUKSO chains).
+ */
+function createMultiChainWagmiConfig(projectId?: string): ReturnType<typeof createConfig> {
+  const chains = [lukso, CHAINS.ethereum, CHAINS.base, luksoTestnet] as const
+
+  const storage = createStorage({
+    key: 'up-wagmi',
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+  })
+
+  const connectors = []
+
+  if (projectId) {
+    connectors.push(
+      walletConnect({
+        projectId,
+        showQrModal: false,
+      })
+    )
+  }
+
+  connectors.push(injected())
+
+  return createConfig({
+    storage,
+    multiInjectedProviderDiscovery: true,
+    connectors,
+    chains,
+    client({ chain }) {
+      return createClient({ chain, transport: http() })
+    },
+  })
+}
+
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [connector, setConnector] = useState<LuksoConnector | null>(null)
   const [wagmiConfig, setWagmiConfig] = useState<Config | null>(null)
@@ -57,14 +97,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID
 
+    // Create our own wagmi config with all chains
+    const ourWagmiConfig = createMultiChainWagmiConfig(projectId)
+
     setupLuksoConnector({
       theme: 'light',
-      chains: {
-        additional: [
-          { id: 1, name: 'Ethereum', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: ['https://ethereum-rpc.publicnode.com'] } } },
-          { id: 8453, name: 'Base', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: ['https://mainnet.base.org'] } } },
-        ],
-      } as any,
+      wagmiConfig: ourWagmiConfig as any,
       ...(projectId ? { walletConnect: { projectId } } : {}),
       ...(isInIframe() ? { embeddedWallet: { enabled: true } } : {}),
       connectors: {
@@ -76,6 +114,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         forceCloseModal()
       },
     }).then((c) => {
+      // The connector will use our wagmiConfig since we passed it
       setConnector(c)
       wagmiConfigRef.current = c.wagmiConfig
       setWagmiConfig(c.wagmiConfig as unknown as Config)
