@@ -4,7 +4,8 @@ import { WagmiProvider, type Config } from 'wagmi'
 import { watchAccount } from '@wagmi/core'
 import { setupLuksoConnector, wagmi as wagmiService } from '@lukso/up-modal'
 import type { LuksoConnector } from '@lukso/up-modal'
-import { createMultiChainWagmiConfig } from '../lib/walletConfig'
+// Note: we use up-modal's built-in wagmi config with chains.additional
+// instead of createMultiChainWagmiConfig, so walletConnect is included
 
 const queryClient = new QueryClient()
 
@@ -48,14 +49,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID
 
-    // Create our own wagmi config with all supported chains (LUKSO, Ethereum, Base)
-    // up-modal's built-in config only supports LUKSO chains
-    const customWagmiConfig = createMultiChainWagmiConfig()
-    wagmiConfigRef.current = customWagmiConfig
-
     setupLuksoConnector({
       theme: 'light',
-      wagmiConfig: customWagmiConfig,
+      chains: {
+        additional: [
+          { id: 1, name: 'Ethereum', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: ['https://ethereum-rpc.publicnode.com'] } } },
+          { id: 8453, name: 'Base', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: ['https://mainnet.base.org'] } } },
+        ],
+      } as any,
       ...(projectId ? { walletConnect: { projectId } } : {}),
       ...(isInIframe() ? { embeddedWallet: { enabled: true } } : {}),
       connectors: {
@@ -66,11 +67,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       },
     }).then((c) => {
       setConnector(c)
-      setWagmiConfig(customWagmiConfig as unknown as Config)
+      wagmiConfigRef.current = c.wagmiConfig
+      setWagmiConfig(c.wagmiConfig as unknown as Config)
 
       // Watch for account changes via wagmi — close the modal when connected
       // This is a fallback for when up-modal's own onConnect doesn't fire (non-LUKSO chains)
-      watchAccount(customWagmiConfig as any, {
+      watchAccount(c.wagmiConfig as any, {
         onChange(account) {
           console.log('[WalletProvider] watchAccount:', account.status, account.address, account.chainId)
           if (account.isConnected) {
