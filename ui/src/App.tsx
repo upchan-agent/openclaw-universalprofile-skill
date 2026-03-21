@@ -336,6 +336,48 @@ function App() {
           </p>
         </div>
 
+        {/* Getting Started */}
+        {!wallet.isConnected && (
+          <div className="card">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              Create an On-Chain Account for Your AI Agent
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              This app lets you grant permissions to a controller address on your{' '}
+              <a href="https://my.universalprofile.cloud" target="_blank" rel="noopener noreferrer" className="text-lukso-pink hover:underline">
+                Universal Profile
+              </a>
+              {' '}— on LUKSO, Ethereum, or Base. It's used by the{' '}
+              <a href="https://clawhub.ai/frozeman/universal-profile" target="_blank" rel="noopener noreferrer" className="text-lukso-pink hover:underline">
+                Universal Profile skill on ClawHub
+              </a>
+              {' '}to let AI agents interact with your profile on-chain.
+            </p>
+            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 space-y-3">
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">To get started:</p>
+              <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-decimal list-inside">
+                <li>
+                  <a href="https://my.universalprofile.cloud" target="_blank" rel="noopener noreferrer" className="text-lukso-pink hover:underline">
+                    Create a Universal Profile
+                  </a>
+                  {' '}and install the{' '}
+                  <a href="https://chromewebstore.google.com/detail/universal-profiles/abpickdkkbnbcoepogfhkhennhfhehfn" target="_blank" rel="noopener noreferrer" className="text-lukso-pink hover:underline">
+                    UP Browser Extension
+                  </a>
+                </li>
+                <li>
+                  Install the{' '}
+                  <a href="https://clawhub.ai/frozeman/universal-profile" target="_blank" rel="noopener noreferrer" className="text-lukso-pink hover:underline">
+                    Universal Profile skill
+                  </a>
+                  {' '}on your OpenClaw agent
+                </li>
+                <li>Use this app to authorize your agent's controller address</li>
+              </ol>
+            </div>
+          </div>
+        )}
+
         {/* Step 1: Connect Wallet (hidden when pending profile import — ProfileImport takes over) */}
         {!wallet.pendingProfileImport && <section>
           <StepHeader number={1} title="Connect Your Universal Profile" />
