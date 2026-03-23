@@ -17,7 +17,7 @@ import {
 } from './components'
 import { useWallet } from './hooks/useWallet'
 import { useAuthorization } from './hooks/useAuthorization'
-import { parseUrlParams, findMatchingPreset, decodePermissions, convertEntriesToAllowedCalls } from './utils'
+import { parseUrlParams, findMatchingPreset, decodePermissions, convertEntriesToAllowedCalls, decodeAllowedCalls, allowedCallsToEntries, decodeAllowedDataKeys, dataKeysToEntries } from './utils'
 import type { AllowedCallEntry, DataKeyEntry } from './utils'
 import { PERMISSION_PRESETS, PERMISSION_NAMES, PERMISSIONS, getChainById } from './constants'
 import type { Hex } from 'viem'
@@ -90,6 +90,22 @@ function App() {
       if (existing.exists && existing.permissionsBigInt) {
         setExistingPermissions(existing.permissionsBigInt)
         setPermissions(existing.permissionsBigInt)
+
+        // Populate AllowedCalls from on-chain data
+        if (existing.allowedCalls) {
+          const decodedCalls = decodeAllowedCalls(existing.allowedCalls)
+          if (decodedCalls.length > 0) {
+            setAllowedCallEntries(allowedCallsToEntries(decodedCalls))
+          }
+        }
+
+        // Populate AllowedDataKeys from on-chain data
+        if (existing.allowedDataKeys) {
+          const decodedKeys = decodeAllowedDataKeys(existing.allowedDataKeys)
+          if (decodedKeys.length > 0) {
+            setAllowedDataKeyEntries(dataKeysToEntries(decodedKeys))
+          }
+        }
         
         const matchingPreset = findMatchingPreset(existing.permissionsBigInt)
         const permissionNames = decodePermissions(existing.permissionsBigInt.toString())

@@ -9,7 +9,7 @@ import {
 } from 'viem'
 import { getChainById } from '../constants'
 import { LSP0_ABI, DATA_KEYS } from '../constants'
-import { buildControllerData, combinePermissions, type AllowedCall, encodeAllowedCalls, encodeAllowedDataKeys } from '../utils'
+import { buildControllerData, combinePermissions, type AllowedCall, encodeAllowedCalls, encodeAllowedDataKeys, getAllowedCallsDataKey, getAllowedDataKeysDataKey } from '../utils'
 
 export interface AuthorizationParams {
   controllerAddress: Address
@@ -37,17 +37,16 @@ export function useAuthorization(
     error: null,
   })
 
-  // Check if controller is already authorized and get their permissions
+  // Check if controller is already authorized and get their permissions, allowed calls, and data keys
   const checkExistingController = useCallback(async (
     controllerAddress: Address
-  ): Promise<{ exists: boolean; permissions?: Hex; permissionsBigInt?: bigint }> => {
+  ): Promise<{ exists: boolean; permissions?: Hex; permissionsBigInt?: bigint; allowedCalls?: Hex; allowedDataKeys?: Hex }> => {
     if (!publicClient || !upAddress) {
       return { exists: false }
     }
 
     try {
-      // First, directly check if this controller has permissions set
-      // This is more efficient than iterating through all controllers
+      // Read permissions
       const permKey = `${DATA_KEYS['AddressPermissions:Permissions_prefix']}${controllerAddress.slice(2).toLowerCase()}` as Hex
       const permissions = await publicClient.readContract({
         address: upAddress,
@@ -60,7 +59,32 @@ export function useAuthorization(
       if (permissions && permissions !== '0x' && permissions !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
         const permissionsBigInt = BigInt(permissions)
         if (permissionsBigInt > 0n) {
-          return { exists: true, permissions, permissionsBigInt }
+          // Also read AllowedCalls and AllowedDataKeys
+          const allowedCallsKey = getAllowedCallsDataKey(controllerAddress)
+          const allowedDataKeysKey = getAllowedDataKeysDataKey(controllerAddress)
+
+          const [allowedCalls, allowedDataKeys] = await Promise.all([
+            publicClient.readContract({
+              address: upAddress,
+              abi: LSP0_ABI,
+              functionName: 'getData',
+              args: [allowedCallsKey],
+            }).catch(() => '0x') as Promise<Hex>,
+            publicClient.readContract({
+              address: upAddress,
+              abi: LSP0_ABI,
+              functionName: 'getData',
+              args: [allowedDataKeysKey],
+            }).catch(() => '0x') as Promise<Hex>,
+          ])
+
+          return {
+            exists: true,
+            permissions,
+            permissionsBigInt,
+            allowedCalls: allowedCalls && allowedCalls !== '0x' ? allowedCalls : undefined,
+            allowedDataKeys: allowedDataKeys && allowedDataKeys !== '0x' ? allowedDataKeys : undefined,
+          }
         }
       }
 

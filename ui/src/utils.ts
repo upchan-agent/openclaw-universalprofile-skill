@@ -184,6 +184,106 @@ export function encodeAllowedDataKeys(dataKeyPrefixes: Hex[]): Hex {
 }
 
 /**
+ * Decode AllowedCalls from CompactBytesArray format
+ * Returns an array of AllowedCall objects
+ */
+export function decodeAllowedCalls(data: Hex): AllowedCall[] {
+  if (!data || data === '0x' || data.length < 6) return []
+
+  const calls: AllowedCall[] = []
+  let offset = 2 // skip '0x'
+
+  while (offset < data.length) {
+    // Read 2-byte length prefix
+    const lengthHex = data.slice(offset, offset + 4)
+    const length = parseInt(lengthHex, 16)
+    offset += 4
+
+    if (length !== 32) {
+      // Unexpected length, skip
+      offset += length * 2
+      continue
+    }
+
+    // Read 32 bytes: 4 callTypes + 20 address + 4 interfaceId + 4 functionSelector
+    const entry = data.slice(offset, offset + 64)
+    const callTypes = parseInt(entry.slice(0, 8), 16)
+    const address = `0x${entry.slice(8, 48)}` as Address
+    const interfaceId = `0x${entry.slice(48, 56)}` as Hex
+    const functionSelector = `0x${entry.slice(56, 64)}` as Hex
+
+    calls.push({ callTypes, address, interfaceId, functionSelector })
+    offset += 64
+  }
+
+  return calls
+}
+
+/**
+ * Convert decoded AllowedCall[] to UI AllowedCallEntry[]
+ */
+export function allowedCallsToEntries(calls: AllowedCall[]): AllowedCallEntry[] {
+  return calls.map((call, i) => {
+    const anyAddress = call.address.toLowerCase() === '0xffffffffffffffffffffffffffffffffffffffff'
+    const anyInterface = call.interfaceId === '0xffffffff'
+    const anyFunction = call.functionSelector === '0xffffffff'
+
+    return {
+      id: `existing-${i}`,
+      callTypes: {
+        call: (call.callTypes & 1) !== 0,
+        staticCall: (call.callTypes & 2) !== 0,
+        delegateCall: (call.callTypes & 4) !== 0,
+      },
+      address: anyAddress ? '' : call.address,
+      useAnyAddress: anyAddress,
+      interfaceId: anyInterface ? '' : call.interfaceId,
+      useAnyInterface: anyInterface,
+      functionInput: anyFunction ? '' : call.functionSelector,
+      useAnyFunction: anyFunction,
+    }
+  })
+}
+
+/**
+ * Decode AllowedERC725YDataKeys from CompactBytesArray format
+ * Returns an array of data key prefixes (Hex)
+ */
+export function decodeAllowedDataKeys(data: Hex): Hex[] {
+  if (!data || data === '0x' || data.length < 6) return []
+
+  const keys: Hex[] = []
+  let offset = 2 // skip '0x'
+
+  while (offset < data.length) {
+    // Read 2-byte length prefix
+    const lengthHex = data.slice(offset, offset + 4)
+    const length = parseInt(lengthHex, 16)
+    offset += 4
+
+    if (length === 0 || offset + length * 2 > data.length) break
+
+    const keyHex = `0x${data.slice(offset, offset + length * 2)}` as Hex
+    keys.push(keyHex)
+    offset += length * 2
+  }
+
+  return keys
+}
+
+/**
+ * Convert decoded data key prefixes to UI DataKeyEntry[]
+ */
+export function dataKeysToEntries(keys: Hex[]): DataKeyEntry[] {
+  return keys.map((key, i) => ({
+    id: `existing-${i}`,
+    name: '',
+    key: key,
+    isPreset: false,
+  }))
+}
+
+/**
  * AllowedCallEntry — UI state model for a single AllowedCalls entry
  */
 export interface AllowedCallEntry {
